@@ -12,6 +12,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/t0mer/kessel/internal/crypto"
 	"github.com/t0mer/kessel/internal/store"
 )
 
@@ -60,7 +61,9 @@ func newAPI(t *testing.T) (*API, *store.Store, *fakeRunner, *fakeReloader) {
 	fr := &fakeRunner{}
 	fl := &fakeReloader{}
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
-	return New(s, fr, fl, filepath.Join(dir, "reports"), log), s, fr, fl
+	key, _ := crypto.NewKey()
+	cipher, _ := crypto.New(key)
+	return New(s, fr, fl, filepath.Join(dir, "reports"), cipher, log), s, fr, fl
 }
 
 // do performs a request against the API routes and returns the recorder.

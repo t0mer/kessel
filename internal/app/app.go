@@ -68,7 +68,7 @@ func New(cfg config.Config, log *slog.Logger, dist fs.FS) (*App, error) {
 	notifier := notify.New(st, cipher, log)
 	rnr := runner.NewRunner(st, psiClient, log, runner.Config{Concurrency: cfg.PSIConcurrency, Reporter: renderer, Notifier: notifier})
 	sch := scheduler.NewScheduler(st, rnr, log)
-	restAPI := api.New(st, rnr, sch, reportsDir, log)
+	restAPI := api.New(st, rnr, sch, reportsDir, cipher, log)
 
 	srv := server.New(log, fmt.Sprintf(":%d", cfg.Port))
 	srv.MountAPI(restAPI.Routes())

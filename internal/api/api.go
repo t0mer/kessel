@@ -7,9 +7,11 @@ import (
 	"log/slog"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 
+	"github.com/t0mer/kessel/internal/crypto"
 	"github.com/t0mer/kessel/internal/store"
 )
 
@@ -29,12 +31,23 @@ type API struct {
 	runner     Runner
 	reloader   ScheduleReloader
 	reportsDir string
+	cipher     *crypto.Cipher
+	httpClient *http.Client
 	log        *slog.Logger
 }
 
-// New builds an API. reportsDir bounds where run reports may be served from.
-func New(st *store.Store, r Runner, reloader ScheduleReloader, reportsDir string, log *slog.Logger) *API {
-	return &API{store: st, runner: r, reloader: reloader, reportsDir: reportsDir, log: log}
+// New builds an API. reportsDir bounds where run reports may be served from;
+// cipher encrypts channel configs at rest.
+func New(st *store.Store, r Runner, reloader ScheduleReloader, reportsDir string, cipher *crypto.Cipher, log *slog.Logger) *API {
+	return &API{
+		store:      st,
+		runner:     r,
+		reloader:   reloader,
+		reportsDir: reportsDir,
+		cipher:     cipher,
+		httpClient: &http.Client{Timeout: 20 * time.Second},
+		log:        log,
+	}
 }
 
 func (a *API) reportsDirForTest() string { return a.reportsDir }
@@ -61,6 +74,23 @@ func (a *API) Routes() chi.Router {
 	r.Get("/runs/{runID}", a.getRun)
 	r.Get("/runs/{runID}/report", a.getRunReport)
 	r.Get("/compare", a.compareRuns)
+
+	r.Get("/channels", a.listChannels)
+	r.Post("/channels", a.createChannel)
+	r.Post("/channels/test", a.testChannel)
+	r.Route("/channels/{channelID}", func(r chi.Router) {
+		r.Put("/", a.updateChannel)
+		r.Delete("/", a.deleteChannel)
+	})
+
+	r.Route("/sites/{siteID}/thresholds", func(r chi.Router) {
+		r.Get("/", a.listThresholds)
+		r.Post("/", a.createThreshold)
+	})
+	r.Route("/thresholds/{thresholdID}", func(r chi.Router) {
+		r.Put("/", a.updateThreshold)
+		r.Delete("/", a.deleteThreshold)
+	})
 
 	return r
 }
