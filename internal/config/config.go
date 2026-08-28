@@ -14,6 +14,7 @@ type Config struct {
 	PSIConcurrency int
 	LogLevel       string
 	LogFormat      string
+	EncryptionKey  string
 }
 
 // Defaults returns the built-in default configuration.

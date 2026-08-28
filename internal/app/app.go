@@ -13,6 +13,8 @@ import (
 
 	"github.com/t0mer/kessel/internal/api"
 	"github.com/t0mer/kessel/internal/config"
+	"github.com/t0mer/kessel/internal/crypto"
+	"github.com/t0mer/kessel/internal/notify"
 	"github.com/t0mer/kessel/internal/psi"
 	"github.com/t0mer/kessel/internal/report"
 	"github.com/t0mer/kessel/internal/runner"
@@ -43,13 +45,28 @@ func New(cfg config.Config, log *slog.Logger, dist fs.FS) (*App, error) {
 	if cfg.PSIAPIKey == "" {
 		log.Warn("PSI API key not set; using keyless PageSpeed Insights (heavy rate limits)")
 	}
+	var key []byte
+	if cfg.EncryptionKey != "" {
+		key, err = crypto.ParseKey(cfg.EncryptionKey)
+	} else {
+		key, err = crypto.LoadOrCreateKey(filepath.Join(cfg.DataDir, "kessel.key"))
+	}
+	if err != nil {
+		return nil, fmt.Errorf("loading encryption key: %w", err)
+	}
+	cipher, err := crypto.New(key)
+	if err != nil {
+		return nil, fmt.Errorf("building cipher: %w", err)
+	}
+
 	psiClient := psi.NewClient(psi.WithAPIKey(cfg.PSIAPIKey))
 	reportsDir := filepath.Join(cfg.DataDir, "reports")
 	renderer, err := report.NewRenderer(reportsDir)
 	if err != nil {
 		return nil, fmt.Errorf("building report renderer: %w", err)
 	}
-	rnr := runner.NewRunner(st, psiClient, log, runner.Config{Concurrency: cfg.PSIConcurrency, Reporter: renderer})
+	notifier := notify.New(st, cipher, log)
+	rnr := runner.NewRunner(st, psiClient, log, runner.Config{Concurrency: cfg.PSIConcurrency, Reporter: renderer, Notifier: notifier})
 	sch := scheduler.NewScheduler(st, rnr, log)
 	restAPI := api.New(st, rnr, sch, reportsDir, log)
 

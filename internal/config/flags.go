@@ -18,6 +18,7 @@ func RegisterFlags(cmd *cobra.Command) {
 	f.Int("psi-concurrency", d.PSIConcurrency, "max concurrent PSI checks")
 	f.String("log-level", d.LogLevel, "log level: debug|info|warning|error")
 	f.String("log-format", d.LogFormat, "log format: json|text")
+	f.String("encryption-key", d.EncryptionKey, "hex-encoded 32-byte key for encrypting secrets at rest (else generated to data dir)")
 	f.String("config", "", "path to YAML config file")
 }
 
@@ -46,6 +47,7 @@ func Load(cmd *cobra.Command) (Config, error) {
 		PSIConcurrency: v.GetInt("psi-concurrency"),
 		LogLevel:       v.GetString("log-level"),
 		LogFormat:      v.GetString("log-format"),
+		EncryptionKey:  v.GetString("encryption-key"),
 	}
 	if err := c.Validate(); err != nil {
 		return Config{}, fmt.Errorf("invalid configuration: %w", err)

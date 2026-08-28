@@ -226,6 +226,34 @@ func TestRunCheckNoReportOnFailure(t *testing.T) {
 	}
 }
 
+type fakeNotifier struct {
+	mu   sync.Mutex
+	runs []int64
+}
+
+func (f *fakeNotifier) Notify(ctx context.Context, site store.Site, run store.Run) {
+	f.mu.Lock()
+	f.runs = append(f.runs, run.ID)
+	f.mu.Unlock()
+}
+
+func TestRunCheckNotifies(t *testing.T) {
+	s := newStore(t)
+	site := mkSite(t, s, store.StrategyMobile)
+	fp := &fakePSI{result: sampleResult(), raw: []byte(`{}`)}
+	fn := &fakeNotifier{}
+	r := NewRunner(s, fp, discardLogger(), Config{Notifier: fn})
+	run, err := r.RunCheck(context.Background(), site, store.StrategyMobile)
+	if err != nil {
+		t.Fatalf("RunCheck: %v", err)
+	}
+	fn.mu.Lock()
+	defer fn.mu.Unlock()
+	if len(fn.runs) != 1 || fn.runs[0] != run.ID {
+		t.Fatalf("notifier not called for run %d: %v", run.ID, fn.runs)
+	}
+}
+
 func TestStrategiesFor(t *testing.T) {
 	if got := StrategiesFor(store.StrategyBoth); len(got) != 2 || got[0] != store.StrategyMobile || got[1] != store.StrategyDesktop {
 		t.Errorf("both -> %v", got)

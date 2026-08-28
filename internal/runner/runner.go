@@ -27,11 +27,17 @@ type Reporter interface {
 	Render(site store.Site, run store.Run, rawJSON []byte) (string, error)
 }
 
+// RunNotifier is notified after each completed run (best-effort).
+type RunNotifier interface {
+	Notify(ctx context.Context, site store.Site, run store.Run)
+}
+
 // Config configures a Runner.
 type Config struct {
 	Concurrency int
 	MinSpacing  time.Duration
 	Reporter    Reporter
+	Notifier    RunNotifier
 }
 
 // Runner executes and persists PSI checks.
@@ -43,6 +49,7 @@ type Runner struct {
 	spacer   *spacer
 	now      func() time.Time
 	reporter Reporter
+	notifier RunNotifier
 
 	mu       sync.Mutex
 	inflight map[string]struct{}
@@ -63,6 +70,7 @@ func NewRunner(st *store.Store, client PSIClient, log *slog.Logger, cfg Config) 
 		spacer:   newSpacer(cfg.MinSpacing, now),
 		now:      now,
 		reporter: cfg.Reporter,
+		notifier: cfg.Notifier,
 		inflight: make(map[string]struct{}),
 	}
 }
@@ -147,6 +155,10 @@ func (r *Runner) RunCheck(ctx context.Context, site store.Site, strategy string)
 		} else {
 			stored.ReportPath = path
 		}
+	}
+
+	if r.notifier != nil {
+		r.notifier.Notify(ctx, site, stored)
 	}
 	return stored, nil
 }
