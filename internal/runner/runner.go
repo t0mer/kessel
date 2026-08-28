@@ -32,12 +32,18 @@ type RunNotifier interface {
 	Notify(ctx context.Context, site store.Site, run store.Run)
 }
 
+// RunObserver observes completed runs (metrics).
+type RunObserver interface {
+	ObserveRun(site store.Site, run store.Run, dur time.Duration)
+}
+
 // Config configures a Runner.
 type Config struct {
 	Concurrency int
 	MinSpacing  time.Duration
 	Reporter    Reporter
 	Notifier    RunNotifier
+	Metrics     RunObserver
 }
 
 // Runner executes and persists PSI checks.
@@ -50,6 +56,7 @@ type Runner struct {
 	now      func() time.Time
 	reporter Reporter
 	notifier RunNotifier
+	metrics  RunObserver
 
 	mu       sync.Mutex
 	inflight map[string]struct{}
@@ -71,6 +78,7 @@ func NewRunner(st *store.Store, client PSIClient, log *slog.Logger, cfg Config) 
 		now:      now,
 		reporter: cfg.Reporter,
 		notifier: cfg.Notifier,
+		metrics:  cfg.Metrics,
 		inflight: make(map[string]struct{}),
 	}
 }
@@ -157,6 +165,9 @@ func (r *Runner) RunCheck(ctx context.Context, site store.Site, strategy string)
 		}
 	}
 
+	if r.metrics != nil {
+		r.metrics.ObserveRun(site, stored, stored.FinishedAt.Sub(stored.StartedAt))
+	}
 	if r.notifier != nil {
 		r.notifier.Notify(ctx, site, stored)
 	}

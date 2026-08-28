@@ -45,6 +45,11 @@ func (s *Server) MountAPI(h http.Handler) {
 	s.mux.Mount("/api/v1", h)
 }
 
+// MountMetrics serves the metrics handler at /metrics.
+func (s *Server) MountMetrics(h http.Handler) {
+	s.mux.Handle("/metrics", h)
+}
+
 // Start begins serving and blocks until the server stops.
 func (s *Server) Start() error {
 	s.log.Info("http server starting", "addr", s.http.Addr)

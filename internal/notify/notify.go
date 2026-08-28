@@ -12,18 +12,27 @@ import (
 	"github.com/t0mer/kessel/internal/store"
 )
 
+// NotificationObserver observes notification send outcomes (metrics).
+type NotificationObserver interface {
+	ObserveNotification(status string)
+}
+
 // Notifier dispatches run outcomes to enabled channels.
 type Notifier struct {
 	store  *store.Store
 	cipher *crypto.Cipher
 	log    *slog.Logger
 	http   *http.Client
+	obs    NotificationObserver
 }
 
 // New builds a Notifier.
 func New(st *store.Store, cipher *crypto.Cipher, log *slog.Logger) *Notifier {
 	return &Notifier{store: st, cipher: cipher, log: log, http: &http.Client{Timeout: 20 * time.Second}}
 }
+
+// SetObserver attaches a metrics observer (optional).
+func (n *Notifier) SetObserver(o NotificationObserver) { n.obs = o }
 
 // Notify evaluates thresholds and sends to matching channels. Best-effort:
 // errors are logged and recorded, never returned.
@@ -70,6 +79,9 @@ func (n *Notifier) sendTo(ctx context.Context, ch store.Channel, run store.Run, 
 	}
 	if status == "error" {
 		n.log.Error("notify: send failed", "channel", ch.Name, "error", errStr)
+	}
+	if n.obs != nil {
+		n.obs.ObserveNotification(status)
 	}
 	if lerr := n.store.LogNotification(ctx, store.NotificationLog{RunID: run.ID, ChannelID: ch.ID, Status: status, Error: errStr}); lerr != nil {
 		n.log.Error("notify: logging", "error", lerr)

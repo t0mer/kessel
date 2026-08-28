@@ -14,6 +14,7 @@ import (
 	"github.com/t0mer/kessel/internal/api"
 	"github.com/t0mer/kessel/internal/config"
 	"github.com/t0mer/kessel/internal/crypto"
+	"github.com/t0mer/kessel/internal/metrics"
 	"github.com/t0mer/kessel/internal/notify"
 	"github.com/t0mer/kessel/internal/psi"
 	"github.com/t0mer/kessel/internal/report"
@@ -65,13 +66,16 @@ func New(cfg config.Config, log *slog.Logger, dist fs.FS) (*App, error) {
 	if err != nil {
 		return nil, fmt.Errorf("building report renderer: %w", err)
 	}
+	mtr := metrics.New()
 	notifier := notify.New(st, cipher, log)
-	rnr := runner.NewRunner(st, psiClient, log, runner.Config{Concurrency: cfg.PSIConcurrency, Reporter: renderer, Notifier: notifier})
+	notifier.SetObserver(mtr)
+	rnr := runner.NewRunner(st, psiClient, log, runner.Config{Concurrency: cfg.PSIConcurrency, Reporter: renderer, Notifier: notifier, Metrics: mtr})
 	sch := scheduler.NewScheduler(st, rnr, log)
 	restAPI := api.New(st, rnr, sch, reportsDir, cipher, log)
 
 	srv := server.New(log, fmt.Sprintf(":%d", cfg.Port))
 	srv.MountAPI(restAPI.Routes())
+	srv.MountMetrics(mtr.Handler())
 	srv.MountSPA(dist)
 
 	return &App{log: log, store: st, scheduler: sch, server: srv}, nil

@@ -60,6 +60,37 @@ func captureShoutrrr(t *testing.T) *[]string {
 	return msgs
 }
 
+type fakeObs struct {
+	mu       sync.Mutex
+	statuses []string
+}
+
+func (f *fakeObs) ObserveNotification(status string) {
+	f.mu.Lock()
+	f.statuses = append(f.statuses, status)
+	f.mu.Unlock()
+}
+
+func TestNotifyObservesMetrics(t *testing.T) {
+	s := newStore(t)
+	c := newCipher(t)
+	ctx := context.Background()
+	site, _ := s.CreateSite(ctx, store.Site{Name: "Ex", URL: "https://ex.com", Strategy: store.StrategyMobile})
+	_, _ = s.CreateThresholdRule(ctx, store.ThresholdRule{SiteID: site.ID, Category: CategoryPerformance, Mode: store.ThresholdAbsolute, Value: 80})
+	addShoutrrrChannel(t, s, c, false, true)
+	captureShoutrrr(t)
+	run, _ := s.CreateRun(ctx, store.Run{SiteID: site.ID, Strategy: store.StrategyMobile, Status: store.RunStatusSuccess, StartedAt: time.Unix(1, 0), FinishedAt: time.Unix(2, 0), Perf: f64(70)})
+	n := New(s, c, discard())
+	obs := &fakeObs{}
+	n.SetObserver(obs)
+	n.Notify(ctx, site, run)
+	obs.mu.Lock()
+	defer obs.mu.Unlock()
+	if len(obs.statuses) != 1 || obs.statuses[0] != "sent" {
+		t.Fatalf("observer statuses = %v, want [sent]", obs.statuses)
+	}
+}
+
 func TestNotifyFailureSends(t *testing.T) {
 	s := newStore(t)
 	c := newCipher(t)

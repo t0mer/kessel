@@ -254,6 +254,33 @@ func TestRunCheckNotifies(t *testing.T) {
 	}
 }
 
+type fakeMetrics struct {
+	mu   sync.Mutex
+	runs int
+}
+
+func (f *fakeMetrics) ObserveRun(site store.Site, run store.Run, dur time.Duration) {
+	f.mu.Lock()
+	f.runs++
+	f.mu.Unlock()
+}
+
+func TestRunCheckObservesMetrics(t *testing.T) {
+	s := newStore(t)
+	site := mkSite(t, s, store.StrategyMobile)
+	fp := &fakePSI{result: sampleResult(), raw: []byte(`{}`)}
+	fm := &fakeMetrics{}
+	r := NewRunner(s, fp, discardLogger(), Config{Metrics: fm})
+	if _, err := r.RunCheck(context.Background(), site, store.StrategyMobile); err != nil {
+		t.Fatalf("RunCheck: %v", err)
+	}
+	fm.mu.Lock()
+	defer fm.mu.Unlock()
+	if fm.runs != 1 {
+		t.Fatalf("ObserveRun called %d times, want 1", fm.runs)
+	}
+}
+
 func TestStrategiesFor(t *testing.T) {
 	if got := StrategiesFor(store.StrategyBoth); len(got) != 2 || got[0] != store.StrategyMobile || got[1] != store.StrategyDesktop {
 		t.Errorf("both -> %v", got)
