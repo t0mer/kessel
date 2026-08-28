@@ -89,7 +89,7 @@ open http://localhost:8080
 ```
 
 The named `kessel-data` volume holds the SQLite database, the AES encryption key
-(`kessel.key`, generated on first run), and rendered reports — persist it.
+(`kessel.key`, generated on first run), rendered reports, and saved backups — persist it.
 
 ## Run from source
 
@@ -114,7 +114,7 @@ in the database.
 | Flag | Env | Default | Description |
 |---|---|---|---|
 | `--port` | `KESSEL_PORT` | `8080` | HTTP listen port |
-| `--data-dir` | `KESSEL_DATA_DIR` | `/data` | SQLite DB, key file, and reports |
+| `--data-dir` | `KESSEL_DATA_DIR` | `/data` | SQLite DB, key file, reports, and backups |
 | `--psi-api-key` | `KESSEL_PSI_API_KEY` | _(empty)_ | PageSpeed Insights API key (keyless if empty) |
 | `--psi-concurrency` | `KESSEL_PSI_CONCURRENCY` | `2` | Max concurrent PSI checks |
 | `--log-level` | `KESSEL_LOG_LEVEL` | `info` | `debug` / `info` / `warning` / `error` |
@@ -145,10 +145,10 @@ All endpoints live under `/api/v1` and speak JSON. Selected routes:
 | `GET/POST` | `/channels` | List / create channels |
 | `PUT/DELETE` | `/channels/{id}` | Update / delete a channel |
 | `POST` | `/channels/test` | Send a real test message |
-| `GET/POST` | `/backups` | List / create a database backup |
-| `GET/DELETE` | `/backups/{name}` | Download / delete a backup |
+| `GET/POST` | `/backups` | List / create a backup (`.zip`: database + key) |
+| `GET/DELETE` | `/backups/{name}` | Download / delete a backup archive |
 | `POST` | `/backups/{name}/restore` | Restore from a saved backup |
-| `POST` | `/restore` | Restore from an uploaded `.db` (multipart) |
+| `POST` | `/restore` | Restore from an uploaded `.zip` archive or raw `.db` (multipart) |
 | `GET` | `/healthz` | Liveness + version |
 | `GET` | `/metrics` | Prometheus metrics |
 
@@ -159,8 +159,14 @@ There is no authentication — Kessel is meant for a trusted network only.
 - Channel credentials and secrets are encrypted at rest with AES-256-GCM; the key
   comes from `--encryption-key`/`KESSEL_ENCRYPTION_KEY` or is generated to
   `<data-dir>/kessel.key` (mode `0600`) on first run.
-- The report viewer serves only files inside the reports directory (no path traversal).
+- The report viewer and backup download serve only files inside their directories
+  (no path traversal).
 - Credentials are never returned by the API after saving and are never logged.
+- **Backup archives contain the encryption key** so they restore anywhere — treat
+  them as secrets. They are written `0600`, uploads are size-capped, and archive
+  extraction is bounded against zip bombs. Restores are validated (integrity check
+  + Kessel schema) and roll back on failure. Restoring a raw `.db` keeps the
+  current key instead of adopting one.
 
 ## License
 
