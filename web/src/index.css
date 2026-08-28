@@ -1,0 +1,74 @@
+@import "tailwindcss";
+
+/* Manual dark mode via a .dark class on <html>. */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* Light theme (default) tokens. */
+:root {
+  --bg: #f7f8fb;
+  --surface: #ffffff;
+  --surface-2: #eef1f6;
+  --border: #d9dfea;
+  --fg: #0b1020;
+  --muted: #5b6376;
+  --primary: #0ea5c4;
+  --primary-fg: #ffffff;
+  --good: #16a34a;
+  --avg: #d97706;
+  --poor: #dc2626;
+  --glow: rgba(14, 165, 196, 0.25);
+}
+
+/* Dark theme: deep space-navy instrument console. */
+.dark {
+  --bg: #0b1020;
+  --surface: #141b2e;
+  --surface-2: #1c2540;
+  --border: #263153;
+  --fg: #e6eaf2;
+  --muted: #8b93a7;
+  --primary: #4cc9f0;
+  --primary-fg: #06121b;
+  --good: #22c55e;
+  --avg: #f59e0b;
+  --poor: #ef4444;
+  --glow: rgba(76, 201, 240, 0.28);
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-border: var(--border);
+  --color-fg: var(--fg);
+  --color-muted: var(--muted);
+  --color-primary: var(--primary);
+  --color-primary-fg: var(--primary-fg);
+  --color-good: var(--good);
+  --color-avg: var(--avg);
+  --color-poor: var(--poor);
+
+  --font-display: "Space Grotesk", system-ui, sans-serif;
+  --font-sans: "Inter", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.001ms !important;
+    transition-duration: 0.001ms !important;
+  }
+}
