@@ -97,27 +97,33 @@ export function Database() {
         }
       />
 
+      <div className="mb-4 rounded-lg border border-avg/40 bg-avg/10 px-4 py-2.5 text-sm text-avg">
+        Backups are <strong>.zip</strong> archives containing the database <em>and its encryption key</em>, so they
+        restore fully on any machine. Keep them secret — anyone with a backup can read your stored credentials.
+      </div>
+
       {notice && <div className="mb-4 rounded-lg border border-good/40 bg-good/10 px-4 py-2 text-sm text-good">{notice}</div>}
       {err && <div className="mb-4"><ErrorState message={err} /></div>}
 
       <Card className="mb-6 p-5">
         <h2 className="font-display text-lg font-semibold text-fg">Restore from a file</h2>
         <p className="mt-1 mb-4 text-sm text-muted">
-          Upload a Kessel backup (<code className="font-mono">.db</code>) to replace the current database. Restoring a
-          backup from a different install also needs that install's encryption key to read saved channel credentials.
+          Upload a Kessel backup archive (<code className="font-mono">.zip</code>) to replace the current database. The
+          archive's encryption key is adopted automatically, so backups restore on any machine. A raw{" "}
+          <code className="font-mono">.db</code> file also works and keeps the current key.
         </p>
         <div className="flex flex-wrap items-center gap-3">
           <input
             ref={fileRef}
             type="file"
-            accept=".db,application/octet-stream,application/x-sqlite3"
+            accept=".zip,.db,application/zip,application/octet-stream"
             onChange={(e) => {
               const f = e.target.files?.[0];
               if (f) restoreUpload(f);
             }}
             className="block text-sm text-muted file:mr-3 file:rounded-lg file:border file:border-border file:bg-surface-2 file:px-3 file:py-2 file:text-sm file:text-fg hover:file:bg-surface"
           />
-          <span className="inline-flex items-center gap-1 text-xs text-muted"><Upload size={14} /> select a .db file</span>
+          <span className="inline-flex items-center gap-1 text-xs text-muted"><Upload size={14} /> select a .zip or .db file</span>
         </div>
       </Card>
 
