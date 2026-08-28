@@ -1,4 +1,5 @@
 import type {
+  BackupInfo,
   Channel,
   CompareResult,
   Run,
@@ -65,6 +66,30 @@ export const api = {
   getRun: (id: number) => request<Run>(`/runs/${id}`),
   compare: (a: number, b: number) => request<CompareResult>(`/compare?a=${a}&b=${b}`),
   reportURL: (id: number) => `${BASE}/runs/${id}/report`,
+
+  // Backups
+  listBackups: () => request<BackupInfo[]>("/backups"),
+  createBackup: () => request<BackupInfo>("/backups", { method: "POST" }),
+  deleteBackup: (name: string) => request<void>(`/backups/${encodeURIComponent(name)}`, { method: "DELETE" }),
+  restoreFromBackup: (name: string) =>
+    request<{ status: string }>(`/backups/${encodeURIComponent(name)}/restore`, { method: "POST" }),
+  backupDownloadURL: (name: string) => `${BASE}/backups/${encodeURIComponent(name)}`,
+  restoreUpload: async (file: File) => {
+    const fd = new FormData();
+    fd.append("file", file);
+    const res = await fetch(`${BASE}/restore`, { method: "POST", body: fd });
+    if (!res.ok) {
+      let message = `restore failed (${res.status})`;
+      try {
+        const body = await res.json();
+        if (body?.error) message = body.error;
+      } catch {
+        /* ignore */
+      }
+      throw new Error(message);
+    }
+    return res.json() as Promise<{ status: string }>;
+  },
 
   // Channels
   listChannels: () => request<Channel[]>("/channels"),

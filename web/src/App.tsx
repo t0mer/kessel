@@ -7,6 +7,7 @@ import { HistoryPage } from "@/pages/History";
 import { Compare } from "@/pages/Compare";
 import { Reports } from "@/pages/Reports";
 import { Channels } from "@/pages/Channels";
+import { Database } from "@/pages/Database";
 import { NotFound } from "@/pages/NotFound";
 
 export default function App() {
@@ -20,6 +21,7 @@ export default function App() {
         <Route path="/compare" element={<Compare />} />
         <Route path="/reports" element={<Reports />} />
         <Route path="/channels" element={<Channels />} />
+        <Route path="/database" element={<Database />} />
         <Route path="*" element={<NotFound />} />
       </Routes>
     </Layout>
