@@ -1,0 +1,19 @@
+services:
+  kessel:
+    image: techblog/kessel:latest
+    container_name: kessel
+    ports:
+      - "8080:8080"
+    volumes:
+      # Named volume: holds the SQLite DB, the AES key, and rendered reports.
+      - kessel-data:/data
+    environment:
+      TZ: UTC
+      KESSEL_LOG_LEVEL: info
+      KESSEL_LOG_FORMAT: json
+      # KESSEL_PSI_API_KEY: your-pagespeed-insights-api-key
+      # KESSEL_ENCRYPTION_KEY: hex-32-byte-key (else generated to /data on first run)
+    restart: unless-stopped
+
+volumes:
+  kessel-data:
