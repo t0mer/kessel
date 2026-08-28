@@ -27,9 +27,6 @@ func New(log *slog.Logger, addr string) *Server {
 	r.Use(middleware.Timeout(60 * time.Second))
 
 	r.Get("/healthz", s.handleHealthz)
-	r.Route("/api/v1", func(r chi.Router) {
-		// endpoints mounted in later phases
-	})
 
 	s.mux = r
 	s.http = &http.Server{
@@ -42,6 +39,11 @@ func New(log *slog.Logger, addr string) *Server {
 
 // Router returns the HTTP handler (useful for tests).
 func (s *Server) Router() http.Handler { return s.mux }
+
+// MountAPI mounts the API router under /api/v1.
+func (s *Server) MountAPI(h http.Handler) {
+	s.mux.Mount("/api/v1", h)
+}
 
 // Start begins serving and blocks until the server stops.
 func (s *Server) Start() error {
