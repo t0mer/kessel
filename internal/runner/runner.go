@@ -22,10 +22,16 @@ type PSIClient interface {
 	Run(ctx context.Context, targetURL, strategy string) (*psi.Result, []byte, error)
 }
 
+// Reporter renders a report for a completed run, returning its path.
+type Reporter interface {
+	Render(site store.Site, run store.Run, rawJSON []byte) (string, error)
+}
+
 // Config configures a Runner.
 type Config struct {
 	Concurrency int
 	MinSpacing  time.Duration
+	Reporter    Reporter
 }
 
 // Runner executes and persists PSI checks.
@@ -33,9 +39,10 @@ type Runner struct {
 	store  *store.Store
 	psi    PSIClient
 	log    *slog.Logger
-	sem    chan struct{}
-	spacer *spacer
-	now    func() time.Time
+	sem      chan struct{}
+	spacer   *spacer
+	now      func() time.Time
+	reporter Reporter
 
 	mu       sync.Mutex
 	inflight map[string]struct{}
@@ -55,6 +62,7 @@ func NewRunner(st *store.Store, client PSIClient, log *slog.Logger, cfg Config) 
 		sem:      make(chan struct{}, conc),
 		spacer:   newSpacer(cfg.MinSpacing, now),
 		now:      now,
+		reporter: cfg.Reporter,
 		inflight: make(map[string]struct{}),
 	}
 }
@@ -129,6 +137,16 @@ func (r *Runner) RunCheck(ctx context.Context, site store.Site, strategy string)
 	stored, err := r.store.CreateRun(ctx, run)
 	if err != nil {
 		return store.Run{}, fmt.Errorf("persisting run: %w", err)
+	}
+
+	if r.reporter != nil && stored.Status == store.RunStatusSuccess && len(raw) > 0 {
+		if path, rerr := r.reporter.Render(site, stored, raw); rerr != nil {
+			r.log.Error("rendering report", "site", site.Slug, "strategy", strategy, "error", rerr)
+		} else if serr := r.store.SetRunReportPath(ctx, stored.ID, path); serr != nil {
+			r.log.Error("recording report path", "run", stored.ID, "error", serr)
+		} else {
+			stored.ReportPath = path
+		}
 	}
 	return stored, nil
 }

@@ -176,6 +176,56 @@ func TestRunnerGlobalConcurrencyLimit(t *testing.T) {
 	}
 }
 
+type fakeReporter struct {
+	mu     sync.Mutex
+	called int
+}
+
+func (f *fakeReporter) Render(site store.Site, run store.Run, rawJSON []byte) (string, error) {
+	f.mu.Lock()
+	f.called++
+	f.mu.Unlock()
+	return "/reports/x.html", nil
+}
+
+func TestRunCheckRendersReportOnSuccess(t *testing.T) {
+	s := newStore(t)
+	site := mkSite(t, s, store.StrategyMobile)
+	fp := &fakePSI{result: sampleResult(), raw: []byte(`{}`)}
+	rep := &fakeReporter{}
+	r := NewRunner(s, fp, discardLogger(), Config{Reporter: rep})
+
+	run, err := r.RunCheck(context.Background(), site, store.StrategyMobile)
+	if err != nil {
+		t.Fatalf("RunCheck: %v", err)
+	}
+	if run.ReportPath != "/reports/x.html" {
+		t.Errorf("ReportPath = %q, want /reports/x.html", run.ReportPath)
+	}
+	got, _ := s.GetRun(context.Background(), run.ID)
+	if got.ReportPath != "/reports/x.html" {
+		t.Errorf("persisted ReportPath = %q", got.ReportPath)
+	}
+	if rep.called != 1 {
+		t.Errorf("reporter called %d times, want 1", rep.called)
+	}
+}
+
+func TestRunCheckNoReportOnFailure(t *testing.T) {
+	s := newStore(t)
+	site := mkSite(t, s, store.StrategyMobile)
+	fp := &fakePSI{err: errors.New("boom")}
+	rep := &fakeReporter{}
+	r := NewRunner(s, fp, discardLogger(), Config{Reporter: rep})
+	run, _ := r.RunCheck(context.Background(), site, store.StrategyMobile)
+	if run.ReportPath != "" {
+		t.Errorf("failed run should have no report, got %q", run.ReportPath)
+	}
+	if rep.called != 0 {
+		t.Errorf("reporter should not run on failure, called %d", rep.called)
+	}
+}
+
 func TestStrategiesFor(t *testing.T) {
 	if got := StrategiesFor(store.StrategyBoth); len(got) != 2 || got[0] != store.StrategyMobile || got[1] != store.StrategyDesktop {
 		t.Errorf("both -> %v", got)
