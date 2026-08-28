@@ -12,9 +12,9 @@ import (
 	"github.com/spf13/cobra"
 
 	webembed "github.com/t0mer/kessel"
+	"github.com/t0mer/kessel/internal/app"
 	"github.com/t0mer/kessel/internal/config"
 	"github.com/t0mer/kessel/internal/logging"
-	"github.com/t0mer/kessel/internal/server"
 	"github.com/t0mer/kessel/internal/version"
 )
 
@@ -48,14 +48,20 @@ func runServe(cmd *cobra.Command, _ []string) error {
 		return fmt.Errorf("loading embedded UI: %w", err)
 	}
 
-	srv := server.New(log, fmt.Sprintf(":%d", cfg.Port))
-	srv.MountSPA(dist)
-
-	errCh := make(chan error, 1)
-	go func() { errCh <- srv.Start() }()
+	application, err := app.New(cfg, log, dist)
+	if err != nil {
+		return err
+	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
+
+	if err := application.Start(ctx); err != nil {
+		return err
+	}
+
+	errCh := make(chan error, 1)
+	go func() { errCh <- application.Serve() }()
 
 	select {
 	case err := <-errCh:
@@ -64,7 +70,7 @@ func runServe(cmd *cobra.Command, _ []string) error {
 		log.Info("shutdown signal received")
 		shutCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
-		return srv.Shutdown(shutCtx)
+		return application.Shutdown(shutCtx)
 	}
 }
 
