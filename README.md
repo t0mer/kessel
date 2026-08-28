@@ -24,7 +24,7 @@ as a **single static binary** with an embedded React UI — drop it on your LAN 
 - **History & comparison** — per-site trend charts and a side-by-side two-run diff with score/metric deltas.
 - **Thresholds & alerts** — **per-site**, per-category rules in **absolute** (below X) or **delta** (dropped > Y) mode.
 - **Notification channels** — Shoutrrr (Slack, Discord, Telegram, email, ntfy, …) and GreenAPI (WhatsApp cloud), each with success/failure toggles and a real "send test". Credentials **encrypted at rest (AES-256-GCM)**. Channels are defined once and **selected per site**, so each site alerts only its chosen channels.
-- **Backup & restore** — one-click database backup (consistent `VACUUM INTO` snapshot, timestamped filename) saved to the data folder **and** downloaded to your browser; restore from a saved backup or an uploaded file, applied live with no restart.
+- **Backup & restore** — one-click backup writes a timestamped `.zip` archive (a consistent `VACUUM INTO` snapshot **plus the encryption key**) to the data folder **and** downloads it. Restore from a saved archive or an upload, applied live with no restart; the archived key is adopted automatically so backups restore on **any** machine. (A raw `.db` file also restores and keeps the current key.) The archive contains the key, so keep backup files secret.
 - **Prometheus metrics** at `/metrics`, structured `log/slog` logging, safe concurrency with configurable spacing.
 - **No login, ever** — built for a trusted LAN; it never assumes it's internet-facing and never requires auth.
 
@@ -56,7 +56,7 @@ Reusable notification channels (Shoutrrr, GreenAPI) with a real "send test".
 ![Channels](assets/screenshots/channels.png)
 
 ### Database
-One-click backup (saved to the data folder and downloaded) and restore from a saved backup or an uploaded file.
+One-click backup to a `.zip` archive (database + encryption key), saved to the data folder and downloaded; restore from a saved archive or an upload.
 
 ![Database backup & restore](assets/screenshots/database.png)
 
