@@ -48,12 +48,15 @@ func (m *Manager) PersistsToFile() bool {
 
 // Adopt switches to a new key: re-keys the live cipher and, when the key is
 // file-backed, writes it to disk so it survives a restart.
+//
+// Ordering matters for consistency: the key is validated and durably persisted
+// *before* the in-memory cipher/key are changed, so a failed disk write leaves
+// the live key and the on-disk key in agreement (both unchanged).
 func (m *Manager) Adopt(key []byte) error {
-	if err := m.cipher.SetKey(key); err != nil {
+	if _, err := newAEAD(key); err != nil { // validate before mutating anything
 		return err
 	}
 	m.mu.Lock()
-	m.key = clone(key)
 	path := m.path
 	m.mu.Unlock()
 	if path != "" {
@@ -61,6 +64,11 @@ func (m *Manager) Adopt(key []byte) error {
 			return fmt.Errorf("persisting adopted key: %w", err)
 		}
 	}
+	// Key already validated above, so SetKey cannot fail here.
+	_ = m.cipher.SetKey(key)
+	m.mu.Lock()
+	m.key = clone(key)
+	m.mu.Unlock()
 	return nil
 }
 

@@ -22,7 +22,8 @@ const (
 	backupSuffix  = ".zip"
 	dbEntry       = "kessel.db"
 	keyEntry      = "kessel.key"
-	maxUploadSize = 2 << 30 // 2 GiB
+	maxUploadSize = 2 << 30 // 2 GiB: cap on an uploaded file AND on a decompressed db entry
+	maxKeyBytes   = 4 << 10 // key entry is a 64-char hex string; cap generously
 )
 
 type backupInfo struct {
@@ -87,7 +88,9 @@ func (a *API) writeBackupArchive(ctx context.Context, dest string) error {
 		return err
 	}
 
-	zf, err := os.Create(dest)
+	// 0600: the archive bundles the encryption key, so it is as sensitive as
+	// unencrypted data and must not be world-readable.
+	zf, err := os.OpenFile(dest, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600)
 	if err != nil {
 		return fmt.Errorf("creating archive: %w", err)
 	}
@@ -262,7 +265,7 @@ func (a *API) restoreArchive(ctx context.Context, path string) error {
 			if err != nil {
 				return fmt.Errorf("reading archived key: %w", err)
 			}
-			b, err := io.ReadAll(rc)
+			b, err := io.ReadAll(io.LimitReader(rc, maxKeyBytes))
 			_ = rc.Close()
 			if err != nil {
 				return fmt.Errorf("reading archived key: %w", err)
@@ -300,7 +303,13 @@ func (a *API) extractToTemp(f *zip.File) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("staging %s: %w", f.Name, err)
 	}
-	if _, err := io.Copy(out, rc); err != nil {
+	// Bound the *decompressed* size to guard against a zip bomb: a small upload
+	// could otherwise inflate to fill the disk.
+	n, err := io.Copy(out, io.LimitReader(rc, maxUploadSize+1))
+	if err == nil && n > maxUploadSize {
+		err = fmt.Errorf("archive entry %s exceeds %d bytes", f.Name, int64(maxUploadSize))
+	}
+	if err != nil {
 		_ = out.Close()
 		_ = os.Remove(out.Name())
 		return "", fmt.Errorf("extracting %s: %w", f.Name, err)

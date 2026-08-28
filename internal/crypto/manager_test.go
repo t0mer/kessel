@@ -67,6 +67,30 @@ func TestManagerAdoptPersistsAndReKeys(t *testing.T) {
 	}
 }
 
+func TestManagerAdoptInvalidKeyLeavesStateUnchanged(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "kessel.key")
+	k1, _ := NewKey()
+	_ = os.WriteFile(path, []byte(hex.EncodeToString(k1)), 0o600)
+	m, _ := NewManager(k1, path)
+	ct, _ := m.Cipher().Encrypt([]byte("x"))
+
+	if err := m.Adopt([]byte("too-short")); err == nil {
+		t.Fatal("expected error adopting an invalid key")
+	}
+	// Cipher, in-memory key, and file are all still the original key.
+	if pt, err := m.Cipher().Decrypt(ct); err != nil || string(pt) != "x" {
+		t.Fatal("cipher changed despite failed Adopt")
+	}
+	if m.KeyHex() != hex.EncodeToString(k1) {
+		t.Fatal("in-memory key changed despite failed Adopt")
+	}
+	onDisk, _ := os.ReadFile(path)
+	if string(onDisk) != hex.EncodeToString(k1) {
+		t.Fatal("key file changed despite failed Adopt")
+	}
+}
+
 func TestManagerAdoptNoFileWhenEnvKey(t *testing.T) {
 	k1, _ := NewKey()
 	m, _ := NewManager(k1, "") // env/flag-provided key: no file

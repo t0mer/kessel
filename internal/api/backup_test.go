@@ -51,7 +51,14 @@ func TestBackupArchiveContainsDbAndKey(t *testing.T) {
 	var info backupInfo
 	decode(t, rec, &info)
 
-	zr, err := zip.OpenReader(filepath.Join(a.backupDir, info.Name))
+	archPath := filepath.Join(a.backupDir, info.Name)
+	if fi, err := os.Stat(archPath); err != nil {
+		t.Fatalf("stat archive: %v", err)
+	} else if fi.Mode().Perm() != 0o600 {
+		t.Errorf("archive perms = %v, want 0600 (contains the key)", fi.Mode().Perm())
+	}
+
+	zr, err := zip.OpenReader(archPath)
 	if err != nil {
 		t.Fatalf("archive is not a valid zip: %v", err)
 	}
