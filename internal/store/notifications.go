@@ -27,7 +27,7 @@ func (s *Store) LogNotification(ctx context.Context, in NotificationLog) error {
 	if in.RuleID != nil {
 		ruleArg = *in.RuleID
 	}
-	_, err := s.db.ExecContext(ctx,
+	_, err := s.conn().ExecContext(ctx,
 		`INSERT INTO notifications_log(run_id, channel_id, rule_id, sent_at, status, error)
 		 VALUES(?, ?, ?, ?, ?, ?)`,
 		in.RunID, in.ChannelID, ruleArg, sentAt.Unix(), in.Status, in.Error)
@@ -40,7 +40,7 @@ func (s *Store) LogNotification(ctx context.Context, in NotificationLog) error {
 // CountNotificationLogs returns the number of logged sends for a run.
 func (s *Store) CountNotificationLogs(ctx context.Context, runID int64) (int, error) {
 	var n int
-	if err := s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM notifications_log WHERE run_id=?`, runID).Scan(&n); err != nil {
+	if err := s.conn().QueryRowContext(ctx, `SELECT COUNT(*) FROM notifications_log WHERE run_id=?`, runID).Scan(&n); err != nil {
 		return 0, fmt.Errorf("counting notification logs: %w", err)
 	}
 	return n, nil

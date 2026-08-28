@@ -63,7 +63,7 @@ const runCols = `id, site_id, strategy, started_at, finished_at, status,
 
 // CreateRun inserts a run and returns the stored row.
 func (s *Store) CreateRun(ctx context.Context, in Run) (Run, error) {
-	res, err := s.db.ExecContext(ctx,
+	res, err := s.conn().ExecContext(ctx,
 		`INSERT INTO runs(site_id, strategy, started_at, finished_at, status,
 			perf, accessibility, best_practices, seo,
 			lcp_ms, cls, tbt_ms, fcp_ms, si_ms, tti_ms,
@@ -106,7 +106,7 @@ func scanRun(row interface{ Scan(...any) error }) (Run, error) {
 
 // GetRun returns a run by ID.
 func (s *Store) GetRun(ctx context.Context, id int64) (Run, error) {
-	row := s.db.QueryRowContext(ctx, `SELECT `+runCols+` FROM runs WHERE id=?`, id)
+	row := s.conn().QueryRowContext(ctx, `SELECT `+runCols+` FROM runs WHERE id=?`, id)
 	r, err := scanRun(row)
 	if errors.Is(err, sql.ErrNoRows) {
 		return Run{}, ErrNotFound
@@ -150,7 +150,7 @@ func (s *Store) ListRuns(ctx context.Context, f RunFilter) ([]Run, error) {
 		limit = 50
 	}
 	args = append(args, limit, f.Offset)
-	rows, err := s.db.QueryContext(ctx,
+	rows, err := s.conn().QueryContext(ctx,
 		`SELECT `+runCols+` FROM runs`+where+
 			` ORDER BY started_at DESC, id DESC LIMIT ? OFFSET ?`, args...)
 	if err != nil {
@@ -172,7 +172,7 @@ func (s *Store) ListRuns(ctx context.Context, f RunFilter) ([]Run, error) {
 func (s *Store) CountRuns(ctx context.Context, f RunFilter) (int, error) {
 	where, args := f.where()
 	var n int
-	if err := s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM runs`+where, args...).Scan(&n); err != nil {
+	if err := s.conn().QueryRowContext(ctx, `SELECT COUNT(*) FROM runs`+where, args...).Scan(&n); err != nil {
 		return 0, fmt.Errorf("counting runs: %w", err)
 	}
 	return n, nil
@@ -180,7 +180,7 @@ func (s *Store) CountRuns(ctx context.Context, f RunFilter) (int, error) {
 
 // LatestRun returns the most recent run for a site+strategy.
 func (s *Store) LatestRun(ctx context.Context, siteID int64, strategy string) (Run, error) {
-	row := s.db.QueryRowContext(ctx,
+	row := s.conn().QueryRowContext(ctx,
 		`SELECT `+runCols+` FROM runs WHERE site_id=? AND strategy=?
 		 ORDER BY started_at DESC, id DESC LIMIT 1`, siteID, strategy)
 	r, err := scanRun(row)
@@ -195,7 +195,7 @@ func (s *Store) LatestRun(ctx context.Context, siteID int64, strategy string) (R
 
 // SetRunReportPath records the rendered report path for a run.
 func (s *Store) SetRunReportPath(ctx context.Context, runID int64, path string) error {
-	res, err := s.db.ExecContext(ctx, `UPDATE runs SET report_path=? WHERE id=?`, path, runID)
+	res, err := s.conn().ExecContext(ctx, `UPDATE runs SET report_path=? WHERE id=?`, path, runID)
 	if err != nil {
 		return fmt.Errorf("setting run report path: %w", err)
 	}
@@ -208,7 +208,7 @@ func (s *Store) SetRunReportPath(ctx context.Context, runID int64, path string) 
 // PreviousSuccessfulRun returns the newest successful run for a site+strategy
 // started strictly before beforeStartedAt.
 func (s *Store) PreviousSuccessfulRun(ctx context.Context, siteID int64, strategy string, beforeStartedAt time.Time) (Run, error) {
-	row := s.db.QueryRowContext(ctx,
+	row := s.conn().QueryRowContext(ctx,
 		`SELECT `+runCols+` FROM runs
 		 WHERE site_id=? AND strategy=? AND status=? AND started_at < ?
 		 ORDER BY started_at DESC, id DESC LIMIT 1`,

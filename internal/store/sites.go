@@ -45,7 +45,7 @@ func (s *Store) CreateSite(ctx context.Context, in Site) (Site, error) {
 		return Site{}, err
 	}
 	now := s.now().Unix()
-	res, err := s.db.ExecContext(ctx,
+	res, err := s.conn().ExecContext(ctx,
 		`INSERT INTO sites(name, slug, url, strategy, enabled, created_at, updated_at)
 		 VALUES(?, ?, ?, ?, 1, ?, ?)`,
 		in.Name, slug, in.URL, in.Strategy, now, now)
@@ -60,7 +60,7 @@ func (s *Store) uniqueSlug(ctx context.Context, base string) (string, error) {
 	candidate := base
 	for i := 2; ; i++ {
 		var n int
-		if err := s.db.QueryRowContext(ctx,
+		if err := s.conn().QueryRowContext(ctx,
 			`SELECT COUNT(*) FROM sites WHERE slug=?`, candidate).Scan(&n); err != nil {
 			return "", fmt.Errorf("checking slug uniqueness: %w", err)
 		}
@@ -88,7 +88,7 @@ const siteCols = `id, name, slug, url, strategy, enabled, created_at, updated_at
 
 // GetSite returns a site by ID.
 func (s *Store) GetSite(ctx context.Context, id int64) (Site, error) {
-	row := s.db.QueryRowContext(ctx, `SELECT `+siteCols+` FROM sites WHERE id=?`, id)
+	row := s.conn().QueryRowContext(ctx, `SELECT `+siteCols+` FROM sites WHERE id=?`, id)
 	st, err := scanSite(row)
 	if errors.Is(err, sql.ErrNoRows) {
 		return Site{}, ErrNotFound
@@ -101,7 +101,7 @@ func (s *Store) GetSite(ctx context.Context, id int64) (Site, error) {
 
 // GetSiteBySlug returns a site by slug.
 func (s *Store) GetSiteBySlug(ctx context.Context, slug string) (Site, error) {
-	row := s.db.QueryRowContext(ctx, `SELECT `+siteCols+` FROM sites WHERE slug=?`, slug)
+	row := s.conn().QueryRowContext(ctx, `SELECT `+siteCols+` FROM sites WHERE slug=?`, slug)
 	st, err := scanSite(row)
 	if errors.Is(err, sql.ErrNoRows) {
 		return Site{}, ErrNotFound
@@ -114,7 +114,7 @@ func (s *Store) GetSiteBySlug(ctx context.Context, slug string) (Site, error) {
 
 // ListSites returns all sites ordered by name.
 func (s *Store) ListSites(ctx context.Context) ([]Site, error) {
-	rows, err := s.db.QueryContext(ctx, `SELECT `+siteCols+` FROM sites ORDER BY name COLLATE NOCASE`)
+	rows, err := s.conn().QueryContext(ctx, `SELECT `+siteCols+` FROM sites ORDER BY name COLLATE NOCASE`)
 	if err != nil {
 		return nil, fmt.Errorf("listing sites: %w", err)
 	}
@@ -132,7 +132,7 @@ func (s *Store) ListSites(ctx context.Context) ([]Site, error) {
 
 // UpdateSite updates mutable fields (name, url, strategy, enabled). Slug is immutable.
 func (s *Store) UpdateSite(ctx context.Context, in Site) (Site, error) {
-	res, err := s.db.ExecContext(ctx,
+	res, err := s.conn().ExecContext(ctx,
 		`UPDATE sites SET name=?, url=?, strategy=?, enabled=?, updated_at=? WHERE id=?`,
 		in.Name, in.URL, in.Strategy, boolToInt(in.Enabled), s.now().Unix(), in.ID)
 	if err != nil {
@@ -146,7 +146,7 @@ func (s *Store) UpdateSite(ctx context.Context, in Site) (Site, error) {
 
 // SetSiteEnabled toggles a site's enabled flag.
 func (s *Store) SetSiteEnabled(ctx context.Context, id int64, enabled bool) error {
-	res, err := s.db.ExecContext(ctx,
+	res, err := s.conn().ExecContext(ctx,
 		`UPDATE sites SET enabled=?, updated_at=? WHERE id=?`,
 		boolToInt(enabled), s.now().Unix(), id)
 	if err != nil {
@@ -160,7 +160,7 @@ func (s *Store) SetSiteEnabled(ctx context.Context, id int64, enabled bool) erro
 
 // DeleteSite removes a site; schedules, rules, and runs cascade via FK.
 func (s *Store) DeleteSite(ctx context.Context, id int64) error {
-	res, err := s.db.ExecContext(ctx, `DELETE FROM sites WHERE id=?`, id)
+	res, err := s.conn().ExecContext(ctx, `DELETE FROM sites WHERE id=?`, id)
 	if err != nil {
 		return fmt.Errorf("deleting site: %w", err)
 	}
