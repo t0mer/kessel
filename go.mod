@@ -4,6 +4,7 @@ go 1.25.11
 
 require (
 	github.com/fsnotify/fsnotify v1.9.0 // indirect
+	github.com/go-chi/chi/v5 v5.3.2 // indirect
 	github.com/go-viper/mapstructure/v2 v2.4.0 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/pelletier/go-toml/v2 v2.2.4 // indirect
