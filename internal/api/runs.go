@@ -3,7 +3,10 @@ package api
 import (
 	"errors"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/t0mer/kessel/internal/store"
@@ -130,6 +133,28 @@ func (a *API) getRun(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, toRunResponse(run))
+}
+
+func (a *API) getRunReport(w http.ResponseWriter, r *http.Request) {
+	run, ok := a.loadRun(w, r, "runID")
+	if !ok {
+		return
+	}
+	if run.ReportPath == "" {
+		writeError(w, http.StatusNotFound, "no report for this run")
+		return
+	}
+	clean := filepath.Clean(run.ReportPath)
+	rel, err := filepath.Rel(a.reportsDir, clean)
+	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		writeError(w, http.StatusNotFound, "report not found")
+		return
+	}
+	if _, err := os.Stat(clean); err != nil {
+		writeError(w, http.StatusNotFound, "report not found")
+		return
+	}
+	http.ServeFile(w, r, clean)
 }
 
 func (a *API) compareRuns(w http.ResponseWriter, r *http.Request) {

@@ -14,6 +14,7 @@ import (
 	"github.com/t0mer/kessel/internal/api"
 	"github.com/t0mer/kessel/internal/config"
 	"github.com/t0mer/kessel/internal/psi"
+	"github.com/t0mer/kessel/internal/report"
 	"github.com/t0mer/kessel/internal/runner"
 	"github.com/t0mer/kessel/internal/scheduler"
 	"github.com/t0mer/kessel/internal/server"
@@ -43,9 +44,14 @@ func New(cfg config.Config, log *slog.Logger, dist fs.FS) (*App, error) {
 		log.Warn("PSI API key not set; using keyless PageSpeed Insights (heavy rate limits)")
 	}
 	psiClient := psi.NewClient(psi.WithAPIKey(cfg.PSIAPIKey))
-	rnr := runner.NewRunner(st, psiClient, log, runner.Config{Concurrency: cfg.PSIConcurrency})
+	reportsDir := filepath.Join(cfg.DataDir, "reports")
+	renderer, err := report.NewRenderer(reportsDir)
+	if err != nil {
+		return nil, fmt.Errorf("building report renderer: %w", err)
+	}
+	rnr := runner.NewRunner(st, psiClient, log, runner.Config{Concurrency: cfg.PSIConcurrency, Reporter: renderer})
 	sch := scheduler.NewScheduler(st, rnr, log)
-	restAPI := api.New(st, rnr, sch, log)
+	restAPI := api.New(st, rnr, sch, reportsDir, log)
 
 	srv := server.New(log, fmt.Sprintf(":%d", cfg.Port))
 	srv.MountAPI(restAPI.Routes())

@@ -51,7 +51,8 @@ func (f *fakeReloader) reloads() int {
 
 func newAPI(t *testing.T) (*API, *store.Store, *fakeRunner, *fakeReloader) {
 	t.Helper()
-	s, err := store.Open(filepath.Join(t.TempDir(), "k.db"))
+	dir := t.TempDir()
+	s, err := store.Open(filepath.Join(dir, "k.db"))
 	if err != nil {
 		t.Fatalf("store.Open: %v", err)
 	}
@@ -59,7 +60,7 @@ func newAPI(t *testing.T) (*API, *store.Store, *fakeRunner, *fakeReloader) {
 	fr := &fakeRunner{}
 	fl := &fakeReloader{}
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
-	return New(s, fr, fl, log), s, fr, fl
+	return New(s, fr, fl, filepath.Join(dir, "reports"), log), s, fr, fl
 }
 
 // do performs a request against the API routes and returns the recorder.

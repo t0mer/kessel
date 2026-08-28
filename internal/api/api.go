@@ -25,16 +25,19 @@ type ScheduleReloader interface {
 
 // API holds the REST API dependencies.
 type API struct {
-	store    *store.Store
-	runner   Runner
-	reloader ScheduleReloader
-	log      *slog.Logger
+	store      *store.Store
+	runner     Runner
+	reloader   ScheduleReloader
+	reportsDir string
+	log        *slog.Logger
 }
 
-// New builds an API.
-func New(st *store.Store, r Runner, reloader ScheduleReloader, log *slog.Logger) *API {
-	return &API{store: st, runner: r, reloader: reloader, log: log}
+// New builds an API. reportsDir bounds where run reports may be served from.
+func New(st *store.Store, r Runner, reloader ScheduleReloader, reportsDir string, log *slog.Logger) *API {
+	return &API{store: st, runner: r, reloader: reloader, reportsDir: reportsDir, log: log}
 }
+
+func (a *API) reportsDirForTest() string { return a.reportsDir }
 
 // Routes returns the API router (mounted under /api/v1 by the server).
 func (a *API) Routes() chi.Router {
@@ -56,6 +59,7 @@ func (a *API) Routes() chi.Router {
 	})
 	r.Get("/runs", a.listRuns)
 	r.Get("/runs/{runID}", a.getRun)
+	r.Get("/runs/{runID}/report", a.getRunReport)
 	r.Get("/compare", a.compareRuns)
 
 	return r
