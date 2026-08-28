@@ -65,6 +65,8 @@ func (a *API) Routes() chi.Router {
 		r.Post("/run", a.runSiteNow)
 		r.Get("/schedules", a.listSchedules)
 		r.Post("/schedules", a.createSchedule)
+		r.Get("/channels", a.getSiteChannels)
+		r.Put("/channels", a.putSiteChannels)
 	})
 	r.Route("/schedules/{scheduleID}", func(r chi.Router) {
 		r.Put("/", a.updateSchedule)
