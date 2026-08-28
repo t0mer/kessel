@@ -62,6 +62,7 @@ func New(cfg config.Config, log *slog.Logger, dist fs.FS) (*App, error) {
 
 	psiClient := psi.NewClient(psi.WithAPIKey(cfg.PSIAPIKey))
 	reportsDir := filepath.Join(cfg.DataDir, "reports")
+	backupDir := filepath.Join(cfg.DataDir, "backups")
 	renderer, err := report.NewRenderer(reportsDir)
 	if err != nil {
 		return nil, fmt.Errorf("building report renderer: %w", err)
@@ -71,7 +72,7 @@ func New(cfg config.Config, log *slog.Logger, dist fs.FS) (*App, error) {
 	notifier.SetObserver(mtr)
 	rnr := runner.NewRunner(st, psiClient, log, runner.Config{Concurrency: cfg.PSIConcurrency, Reporter: renderer, Notifier: notifier, Metrics: mtr})
 	sch := scheduler.NewScheduler(st, rnr, log)
-	restAPI := api.New(st, rnr, sch, reportsDir, cipher, log)
+	restAPI := api.New(st, rnr, sch, reportsDir, backupDir, cipher, log)
 
 	srv := server.New(log, fmt.Sprintf(":%d", cfg.Port))
 	srv.MountAPI(restAPI.Routes())

@@ -63,7 +63,7 @@ func newAPI(t *testing.T) (*API, *store.Store, *fakeRunner, *fakeReloader) {
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
 	key, _ := crypto.NewKey()
 	cipher, _ := crypto.New(key)
-	return New(s, fr, fl, filepath.Join(dir, "reports"), cipher, log), s, fr, fl
+	return New(s, fr, fl, filepath.Join(dir, "reports"), filepath.Join(dir, "backups"), cipher, log), s, fr, fl
 }
 
 // do performs a request against the API routes and returns the recorder.

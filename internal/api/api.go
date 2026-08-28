@@ -31,19 +31,22 @@ type API struct {
 	runner     Runner
 	reloader   ScheduleReloader
 	reportsDir string
+	backupDir  string
 	cipher     *crypto.Cipher
 	httpClient *http.Client
 	log        *slog.Logger
 }
 
-// New builds an API. reportsDir bounds where run reports may be served from;
-// cipher encrypts channel configs at rest.
-func New(st *store.Store, r Runner, reloader ScheduleReloader, reportsDir string, cipher *crypto.Cipher, log *slog.Logger) *API {
+// New builds an API. reportsDir bounds where run reports may be served from,
+// backupDir is where database backups are written; cipher encrypts channel
+// configs at rest.
+func New(st *store.Store, r Runner, reloader ScheduleReloader, reportsDir, backupDir string, cipher *crypto.Cipher, log *slog.Logger) *API {
 	return &API{
 		store:      st,
 		runner:     r,
 		reloader:   reloader,
 		reportsDir: reportsDir,
+		backupDir:  backupDir,
 		cipher:     cipher,
 		httpClient: &http.Client{Timeout: 20 * time.Second},
 		log:        log,
@@ -93,6 +96,15 @@ func (a *API) Routes() chi.Router {
 		r.Put("/", a.updateThreshold)
 		r.Delete("/", a.deleteThreshold)
 	})
+
+	r.Get("/backups", a.listBackups)
+	r.Post("/backups", a.createBackup)
+	r.Route("/backups/{name}", func(r chi.Router) {
+		r.Get("/", a.downloadBackup)
+		r.Delete("/", a.deleteBackup)
+		r.Post("/restore", a.restoreFromBackup)
+	})
+	r.Post("/restore", a.restoreUpload)
 
 	return r
 }
