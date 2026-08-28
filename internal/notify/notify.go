@@ -49,7 +49,7 @@ func (n *Notifier) Notify(ctx context.Context, site store.Site, run store.Run) {
 	breaches := Evaluate(rules, run, prev)
 	failure := run.Status == store.RunStatusError || len(breaches) > 0
 
-	channels, err := n.store.ListEnabledChannels(ctx)
+	channels, err := n.store.ListEnabledChannelsBySite(ctx, site.ID)
 	if err != nil {
 		n.log.Error("notify: loading channels", "error", err)
 		return

@@ -34,13 +34,16 @@ func newCipher(t *testing.T) *crypto.Cipher {
 
 func discard() *slog.Logger { return slog.New(slog.NewTextHandler(io.Discard, nil)) }
 
-func addShoutrrrChannel(t *testing.T, s *store.Store, c *crypto.Cipher, onSuccess, onFailure bool) store.Channel {
+func addShoutrrrChannel(t *testing.T, s *store.Store, c *crypto.Cipher, siteID int64, onSuccess, onFailure bool) store.Channel {
 	t.Helper()
 	cfg, _ := json.Marshal(ShoutrrrConfig{URL: "slack://tok@chan"})
 	enc, _ := c.Encrypt(cfg)
 	ch, err := s.CreateChannel(context.Background(), store.Channel{Type: store.ChannelShoutrrr, Name: "Slack", ConfigEncrypted: enc, NotifyOnSuccess: onSuccess, NotifyOnFailure: onFailure})
 	if err != nil {
 		t.Fatalf("CreateChannel: %v", err)
+	}
+	if err := s.SetSiteChannels(context.Background(), siteID, []int64{ch.ID}); err != nil {
+		t.Fatalf("SetSiteChannels: %v", err)
 	}
 	return ch
 }
@@ -77,7 +80,7 @@ func TestNotifyObservesMetrics(t *testing.T) {
 	ctx := context.Background()
 	site, _ := s.CreateSite(ctx, store.Site{Name: "Ex", URL: "https://ex.com", Strategy: store.StrategyMobile})
 	_, _ = s.CreateThresholdRule(ctx, store.ThresholdRule{SiteID: site.ID, Category: CategoryPerformance, Mode: store.ThresholdAbsolute, Value: 80})
-	addShoutrrrChannel(t, s, c, false, true)
+	addShoutrrrChannel(t, s, c, site.ID, false, true)
 	captureShoutrrr(t)
 	run, _ := s.CreateRun(ctx, store.Run{SiteID: site.ID, Strategy: store.StrategyMobile, Status: store.RunStatusSuccess, StartedAt: time.Unix(1, 0), FinishedAt: time.Unix(2, 0), Perf: f64(70)})
 	n := New(s, c, discard())
@@ -97,7 +100,7 @@ func TestNotifyFailureSends(t *testing.T) {
 	ctx := context.Background()
 	site, _ := s.CreateSite(ctx, store.Site{Name: "Ex", URL: "https://ex.com", Strategy: store.StrategyMobile})
 	_, _ = s.CreateThresholdRule(ctx, store.ThresholdRule{SiteID: site.ID, Category: CategoryPerformance, Mode: store.ThresholdAbsolute, Value: 80})
-	addShoutrrrChannel(t, s, c, false, true) // failure only
+	addShoutrrrChannel(t, s, c, site.ID, false, true) // failure only
 	msgs := captureShoutrrr(t)
 
 	run, _ := s.CreateRun(ctx, store.Run{SiteID: site.ID, Strategy: store.StrategyMobile, Status: store.RunStatusSuccess, StartedAt: time.Unix(1000, 0), FinishedAt: time.Unix(1001, 0), Perf: f64(70)})
@@ -121,7 +124,7 @@ func TestNotifySuccessRespectsToggles(t *testing.T) {
 	c := newCipher(t)
 	ctx := context.Background()
 	site, _ := s.CreateSite(ctx, store.Site{Name: "Ex", URL: "https://ex.com", Strategy: store.StrategyMobile})
-	addShoutrrrChannel(t, s, c, false, true) // failure-only channel; run is a success -> no send
+	addShoutrrrChannel(t, s, c, site.ID, false, true) // failure-only channel; run is a success -> no send
 	msgs := captureShoutrrr(t)
 	run, _ := s.CreateRun(ctx, store.Run{SiteID: site.ID, Strategy: store.StrategyMobile, Status: store.RunStatusSuccess, StartedAt: time.Unix(1, 0), FinishedAt: time.Unix(2, 0), Perf: f64(95)})
 	New(s, c, discard()).Notify(ctx, site, run)
@@ -135,7 +138,7 @@ func TestNotifySuccessSendsToSuccessChannel(t *testing.T) {
 	c := newCipher(t)
 	ctx := context.Background()
 	site, _ := s.CreateSite(ctx, store.Site{Name: "Ex", URL: "https://ex.com", Strategy: store.StrategyMobile})
-	addShoutrrrChannel(t, s, c, true, false) // success channel
+	addShoutrrrChannel(t, s, c, site.ID, true, false) // success channel
 	msgs := captureShoutrrr(t)
 	run, _ := s.CreateRun(ctx, store.Run{SiteID: site.ID, Strategy: store.StrategyMobile, Status: store.RunStatusSuccess, StartedAt: time.Unix(1, 0), FinishedAt: time.Unix(2, 0), Perf: f64(95)})
 	New(s, c, discard()).Notify(ctx, site, run)
