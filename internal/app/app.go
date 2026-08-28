@@ -47,17 +47,19 @@ func New(cfg config.Config, log *slog.Logger, dist fs.FS) (*App, error) {
 		log.Warn("PSI API key not set; using keyless PageSpeed Insights (heavy rate limits)")
 	}
 	var key []byte
+	var keyPath string
 	if cfg.EncryptionKey != "" {
-		key, err = crypto.ParseKey(cfg.EncryptionKey)
+		key, err = crypto.ParseKey(cfg.EncryptionKey) // supplied via flag/env; not file-backed
 	} else {
-		key, err = crypto.LoadOrCreateKey(filepath.Join(cfg.DataDir, "kessel.key"))
+		keyPath = filepath.Join(cfg.DataDir, "kessel.key")
+		key, err = crypto.LoadOrCreateKey(keyPath)
 	}
 	if err != nil {
 		return nil, fmt.Errorf("loading encryption key: %w", err)
 	}
-	cipher, err := crypto.New(key)
+	keys, err := crypto.NewManager(key, keyPath)
 	if err != nil {
-		return nil, fmt.Errorf("building cipher: %w", err)
+		return nil, fmt.Errorf("building key manager: %w", err)
 	}
 
 	psiClient := psi.NewClient(psi.WithAPIKey(cfg.PSIAPIKey))
@@ -68,11 +70,11 @@ func New(cfg config.Config, log *slog.Logger, dist fs.FS) (*App, error) {
 		return nil, fmt.Errorf("building report renderer: %w", err)
 	}
 	mtr := metrics.New()
-	notifier := notify.New(st, cipher, log)
+	notifier := notify.New(st, keys.Cipher(), log)
 	notifier.SetObserver(mtr)
 	rnr := runner.NewRunner(st, psiClient, log, runner.Config{Concurrency: cfg.PSIConcurrency, Reporter: renderer, Notifier: notifier, Metrics: mtr})
 	sch := scheduler.NewScheduler(st, rnr, log)
-	restAPI := api.New(st, rnr, sch, reportsDir, backupDir, cipher, log)
+	restAPI := api.New(st, rnr, sch, reportsDir, backupDir, keys, log)
 
 	srv := server.New(log, fmt.Sprintf(":%d", cfg.Port))
 	srv.MountAPI(restAPI.Routes())

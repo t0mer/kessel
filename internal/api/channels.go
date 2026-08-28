@@ -75,7 +75,7 @@ func (a *API) createChannel(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "config is required")
 		return
 	}
-	enc, err := a.cipher.Encrypt(req.Config)
+	enc, err := a.keys.Cipher().Encrypt(req.Config)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "encrypting config")
 		return
@@ -134,7 +134,7 @@ func (a *API) updateChannel(w http.ResponseWriter, r *http.Request) {
 		ch.NotifyOnFailure = *req.NotifyOnFailure
 	}
 	if len(req.Config) > 0 { // re-encrypt only when a new config is supplied
-		enc, err := a.cipher.Encrypt(req.Config)
+		enc, err := a.keys.Cipher().Encrypt(req.Config)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "encrypting config")
 			return

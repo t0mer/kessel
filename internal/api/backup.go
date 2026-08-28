@@ -1,6 +1,8 @@
 package api
 
 import (
+	"archive/zip"
+	"context"
 	"fmt"
 	"io"
 	"net/http"
@@ -11,11 +13,15 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
+
+	"github.com/t0mer/kessel/internal/crypto"
 )
 
 const (
 	backupPrefix  = "kessel-backup-"
-	backupSuffix  = ".db"
+	backupSuffix  = ".zip"
+	dbEntry       = "kessel.db"
+	keyEntry      = "kessel.key"
 	maxUploadSize = 2 << 30 // 2 GiB
 )
 
@@ -49,7 +55,8 @@ func (a *API) createBackup(w http.ResponseWriter, r *http.Request) {
 		name = fmt.Sprintf("%s-%d%s", base, i, backupSuffix)
 		dest = filepath.Join(a.backupDir, name)
 	}
-	if err := a.store.Backup(r.Context(), dest); err != nil {
+	if err := a.writeBackupArchive(r.Context(), dest); err != nil {
+		_ = os.Remove(dest)
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
@@ -59,6 +66,59 @@ func (a *API) createBackup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusCreated, backupInfo{Name: name, Size: fi.Size(), CreatedAt: time.Now().UTC().Format(time.RFC3339)})
+}
+
+// writeBackupArchive snapshots the DB and writes a zip containing the DB plus
+// the encryption key (so the archive can be restored on another install).
+func (a *API) writeBackupArchive(ctx context.Context, dest string) error {
+	tf, err := os.CreateTemp(a.backupDir, "snapshot-*.db")
+	if err != nil {
+		return fmt.Errorf("staging snapshot: %w", err)
+	}
+	snap := tf.Name()
+	_ = tf.Close()
+	_ = os.Remove(snap) // VACUUM INTO requires the destination not to exist
+	defer func() {
+		_ = os.Remove(snap)
+		_ = os.Remove(snap + "-wal")
+		_ = os.Remove(snap + "-shm")
+	}()
+	if err := a.store.Backup(ctx, snap); err != nil {
+		return err
+	}
+
+	zf, err := os.Create(dest)
+	if err != nil {
+		return fmt.Errorf("creating archive: %w", err)
+	}
+	defer zf.Close()
+	zw := zip.NewWriter(zf)
+
+	dbw, err := zw.Create(dbEntry)
+	if err != nil {
+		return fmt.Errorf("writing archive db: %w", err)
+	}
+	snapFile, err := os.Open(snap)
+	if err != nil {
+		return fmt.Errorf("reading snapshot: %w", err)
+	}
+	if _, err := io.Copy(dbw, snapFile); err != nil {
+		_ = snapFile.Close()
+		return fmt.Errorf("archiving db: %w", err)
+	}
+	_ = snapFile.Close()
+
+	kw, err := zw.Create(keyEntry)
+	if err != nil {
+		return fmt.Errorf("writing archive key: %w", err)
+	}
+	if _, err := kw.Write([]byte(a.keys.KeyHex())); err != nil {
+		return fmt.Errorf("archiving key: %w", err)
+	}
+	if err := zw.Close(); err != nil {
+		return fmt.Errorf("finalizing archive: %w", err)
+	}
+	return nil
 }
 
 func (a *API) listBackups(w http.ResponseWriter, r *http.Request) {
@@ -97,7 +157,7 @@ func (a *API) downloadBackup(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, "backup not found")
 		return
 	}
-	w.Header().Set("Content-Type", "application/octet-stream")
+	w.Header().Set("Content-Type", "application/zip")
 	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%q", filepath.Base(path)))
 	http.ServeFile(w, r, path)
 }
@@ -167,7 +227,7 @@ func (a *API) restoreUpload(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *API) doRestore(w http.ResponseWriter, r *http.Request, path string) {
-	if err := a.store.RestoreFrom(r.Context(), path); err != nil {
+	if err := a.restoreArchive(r.Context(), path); err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
@@ -176,6 +236,79 @@ func (a *API) doRestore(w http.ResponseWriter, r *http.Request, path string) {
 		a.log.Error("reload after restore", "error", err)
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"status": "restored"})
+}
+
+// restoreArchive restores from a Kessel backup .zip (db + key) — adopting the
+// archived key — or, for backward compatibility, from a raw SQLite .db file
+// (keeping the current key).
+func (a *API) restoreArchive(ctx context.Context, path string) error {
+	zr, err := zip.OpenReader(path)
+	if err != nil {
+		// Not a zip: treat as a raw .db and keep the current key.
+		return a.store.RestoreFrom(ctx, path)
+	}
+	defer zr.Close()
+
+	var dbTmp, keyHex string
+	for _, f := range zr.File {
+		switch f.Name {
+		case dbEntry:
+			dbTmp, err = a.extractToTemp(f)
+			if err != nil {
+				return err
+			}
+		case keyEntry:
+			rc, err := f.Open()
+			if err != nil {
+				return fmt.Errorf("reading archived key: %w", err)
+			}
+			b, err := io.ReadAll(rc)
+			_ = rc.Close()
+			if err != nil {
+				return fmt.Errorf("reading archived key: %w", err)
+			}
+			keyHex = strings.TrimSpace(string(b))
+		}
+	}
+	if dbTmp == "" {
+		return fmt.Errorf("archive is missing %s", dbEntry)
+	}
+	defer os.Remove(dbTmp)
+
+	if err := a.store.RestoreFrom(ctx, dbTmp); err != nil {
+		return err
+	}
+	if keyHex != "" {
+		key, err := crypto.ParseKey(keyHex)
+		if err != nil {
+			return fmt.Errorf("archive contains an invalid encryption key: %w", err)
+		}
+		if err := a.keys.Adopt(key); err != nil {
+			return fmt.Errorf("adopting archived key: %w", err)
+		}
+	}
+	return nil
+}
+
+func (a *API) extractToTemp(f *zip.File) (string, error) {
+	rc, err := f.Open()
+	if err != nil {
+		return "", fmt.Errorf("opening %s: %w", f.Name, err)
+	}
+	defer rc.Close()
+	out, err := os.CreateTemp(a.backupDir, "restore-db-*.db")
+	if err != nil {
+		return "", fmt.Errorf("staging %s: %w", f.Name, err)
+	}
+	if _, err := io.Copy(out, rc); err != nil {
+		_ = out.Close()
+		_ = os.Remove(out.Name())
+		return "", fmt.Errorf("extracting %s: %w", f.Name, err)
+	}
+	if err := out.Close(); err != nil {
+		return "", err
+	}
+	return out.Name(), nil
 }
 
 func fileExists(path string) bool {

@@ -32,26 +32,29 @@ type API struct {
 	reloader   ScheduleReloader
 	reportsDir string
 	backupDir  string
-	cipher     *crypto.Cipher
+	keys       *crypto.Manager
 	httpClient *http.Client
 	log        *slog.Logger
 }
 
 // New builds an API. reportsDir bounds where run reports may be served from,
-// backupDir is where database backups are written; cipher encrypts channel
-// configs at rest.
-func New(st *store.Store, r Runner, reloader ScheduleReloader, reportsDir, backupDir string, cipher *crypto.Cipher, log *slog.Logger) *API {
+// backupDir is where database backups are written; keys manages the at-rest
+// encryption key (used to encrypt channel configs and to include/adopt the key
+// during backup/restore).
+func New(st *store.Store, r Runner, reloader ScheduleReloader, reportsDir, backupDir string, keys *crypto.Manager, log *slog.Logger) *API {
 	return &API{
 		store:      st,
 		runner:     r,
 		reloader:   reloader,
 		reportsDir: reportsDir,
 		backupDir:  backupDir,
-		cipher:     cipher,
+		keys:       keys,
 		httpClient: &http.Client{Timeout: 20 * time.Second},
 		log:        log,
 	}
 }
+
+func (a *API) keysForTest() *crypto.Manager { return a.keys }
 
 func (a *API) reportsDirForTest() string { return a.reportsDir }
 
