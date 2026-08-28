@@ -187,6 +187,30 @@ func TestPreviousSuccessfulRun(t *testing.T) {
 	}
 }
 
+func TestSetRunReportPath(t *testing.T) {
+	s := openTemp(t)
+	ctx := context.Background()
+	site := mustSite(t, s)
+	run, err := s.CreateRun(ctx, sampleRun(site.ID))
+	if err != nil {
+		t.Fatalf("CreateRun: %v", err)
+	}
+	if err := s.SetRunReportPath(ctx, run.ID, "/data/reports/s/mobile/x.html"); err != nil {
+		t.Fatalf("SetRunReportPath: %v", err)
+	}
+	got, _ := s.GetRun(ctx, run.ID)
+	if got.ReportPath != "/data/reports/s/mobile/x.html" {
+		t.Errorf("report path = %q", got.ReportPath)
+	}
+}
+
+func TestSetRunReportPathNotFound(t *testing.T) {
+	s := openTemp(t)
+	if err := s.SetRunReportPath(context.Background(), 99, "/x"); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("err = %v, want ErrNotFound", err)
+	}
+}
+
 func TestPreviousSuccessfulRunNone(t *testing.T) {
 	s := openTemp(t)
 	site := mustSite(t, s)

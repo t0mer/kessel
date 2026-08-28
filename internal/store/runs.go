@@ -193,6 +193,18 @@ func (s *Store) LatestRun(ctx context.Context, siteID int64, strategy string) (R
 	return r, nil
 }
 
+// SetRunReportPath records the rendered report path for a run.
+func (s *Store) SetRunReportPath(ctx context.Context, runID int64, path string) error {
+	res, err := s.db.ExecContext(ctx, `UPDATE runs SET report_path=? WHERE id=?`, path, runID)
+	if err != nil {
+		return fmt.Errorf("setting run report path: %w", err)
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
 // PreviousSuccessfulRun returns the newest successful run for a site+strategy
 // started strictly before beforeStartedAt.
 func (s *Store) PreviousSuccessfulRun(ctx context.Context, siteID int64, strategy string, beforeStartedAt time.Time) (Run, error) {
