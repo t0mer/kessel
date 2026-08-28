@@ -7,7 +7,7 @@ import (
 
 // SetSiteChannels replaces the set of channels linked to a site.
 func (s *Store) SetSiteChannels(ctx context.Context, siteID int64, channelIDs []int64) error {
-	tx, err := s.db.BeginTx(ctx, nil)
+	tx, err := s.conn().BeginTx(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("begin tx: %w", err)
 	}
@@ -30,7 +30,7 @@ func (s *Store) SetSiteChannels(ctx context.Context, siteID int64, channelIDs []
 
 // ListChannelIDsBySite returns the IDs of channels linked to a site.
 func (s *Store) ListChannelIDsBySite(ctx context.Context, siteID int64) ([]int64, error) {
-	rows, err := s.db.QueryContext(ctx, `SELECT channel_id FROM site_channels WHERE site_id=? ORDER BY channel_id`, siteID)
+	rows, err := s.conn().QueryContext(ctx, `SELECT channel_id FROM site_channels WHERE site_id=? ORDER BY channel_id`, siteID)
 	if err != nil {
 		return nil, fmt.Errorf("listing site channel ids: %w", err)
 	}
@@ -49,7 +49,7 @@ func (s *Store) ListChannelIDsBySite(ctx context.Context, siteID int64) ([]int64
 // ListEnabledChannelsBySite returns the enabled channels linked to a site,
 // ordered by name (used by the notification dispatcher).
 func (s *Store) ListEnabledChannelsBySite(ctx context.Context, siteID int64) ([]Channel, error) {
-	rows, err := s.db.QueryContext(ctx,
+	rows, err := s.conn().QueryContext(ctx,
 		`SELECT `+channelCols+` FROM channels c
 		 JOIN site_channels sc ON sc.channel_id = c.id
 		 WHERE sc.site_id = ? AND c.enabled = 1

@@ -44,7 +44,7 @@ func scanChannel(row interface{ Scan(...any) error }) (Channel, error) {
 
 // CreateChannel inserts a new (enabled) channel.
 func (s *Store) CreateChannel(ctx context.Context, in Channel) (Channel, error) {
-	res, err := s.db.ExecContext(ctx,
+	res, err := s.conn().ExecContext(ctx,
 		`INSERT INTO channels(type, name, config_encrypted, enabled, notify_on_success, notify_on_failure)
 		 VALUES(?, ?, ?, 1, ?, ?)`,
 		in.Type, in.Name, in.ConfigEncrypted, boolToInt(in.NotifyOnSuccess), boolToInt(in.NotifyOnFailure))
@@ -57,7 +57,7 @@ func (s *Store) CreateChannel(ctx context.Context, in Channel) (Channel, error) 
 
 // GetChannel returns a channel by ID.
 func (s *Store) GetChannel(ctx context.Context, id int64) (Channel, error) {
-	row := s.db.QueryRowContext(ctx, `SELECT `+channelCols+` FROM channels WHERE id=?`, id)
+	row := s.conn().QueryRowContext(ctx, `SELECT `+channelCols+` FROM channels WHERE id=?`, id)
 	c, err := scanChannel(row)
 	if errors.Is(err, sql.ErrNoRows) {
 		return Channel{}, ErrNotFound
@@ -69,7 +69,7 @@ func (s *Store) GetChannel(ctx context.Context, id int64) (Channel, error) {
 }
 
 func (s *Store) queryChannels(ctx context.Context, where string) ([]Channel, error) {
-	rows, err := s.db.QueryContext(ctx, `SELECT `+channelCols+` FROM channels`+where+` ORDER BY name COLLATE NOCASE`)
+	rows, err := s.conn().QueryContext(ctx, `SELECT `+channelCols+` FROM channels`+where+` ORDER BY name COLLATE NOCASE`)
 	if err != nil {
 		return nil, fmt.Errorf("listing channels: %w", err)
 	}
@@ -97,7 +97,7 @@ func (s *Store) ListEnabledChannels(ctx context.Context) ([]Channel, error) {
 
 // UpdateChannel updates name, config, enabled, and notify flags. Type is immutable.
 func (s *Store) UpdateChannel(ctx context.Context, in Channel) (Channel, error) {
-	res, err := s.db.ExecContext(ctx,
+	res, err := s.conn().ExecContext(ctx,
 		`UPDATE channels SET name=?, config_encrypted=?, enabled=?, notify_on_success=?, notify_on_failure=? WHERE id=?`,
 		in.Name, in.ConfigEncrypted, boolToInt(in.Enabled), boolToInt(in.NotifyOnSuccess), boolToInt(in.NotifyOnFailure), in.ID)
 	if err != nil {
@@ -111,7 +111,7 @@ func (s *Store) UpdateChannel(ctx context.Context, in Channel) (Channel, error) 
 
 // SetChannelEnabled toggles a channel's enabled flag.
 func (s *Store) SetChannelEnabled(ctx context.Context, id int64, enabled bool) error {
-	res, err := s.db.ExecContext(ctx, `UPDATE channels SET enabled=? WHERE id=?`, boolToInt(enabled), id)
+	res, err := s.conn().ExecContext(ctx, `UPDATE channels SET enabled=? WHERE id=?`, boolToInt(enabled), id)
 	if err != nil {
 		return fmt.Errorf("setting channel enabled: %w", err)
 	}
@@ -123,7 +123,7 @@ func (s *Store) SetChannelEnabled(ctx context.Context, id int64, enabled bool) e
 
 // DeleteChannel removes a channel.
 func (s *Store) DeleteChannel(ctx context.Context, id int64) error {
-	res, err := s.db.ExecContext(ctx, `DELETE FROM channels WHERE id=?`, id)
+	res, err := s.conn().ExecContext(ctx, `DELETE FROM channels WHERE id=?`, id)
 	if err != nil {
 		return fmt.Errorf("deleting channel: %w", err)
 	}

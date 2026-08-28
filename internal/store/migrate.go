@@ -9,7 +9,7 @@ import (
 )
 
 func (s *Store) migrate() error {
-	if _, err := s.db.Exec(
+	if _, err := s.conn().Exec(
 		`CREATE TABLE IF NOT EXISTS schema_migrations (
 			version    INTEGER PRIMARY KEY,
 			applied_at INTEGER NOT NULL
@@ -35,7 +35,7 @@ func (s *Store) migrate() error {
 			return err
 		}
 		var applied int
-		if err := s.db.QueryRow(
+		if err := s.conn().QueryRow(
 			`SELECT COUNT(*) FROM schema_migrations WHERE version=?`, version,
 		).Scan(&applied); err != nil {
 			return fmt.Errorf("checking migration %d: %w", version, err)
@@ -47,7 +47,7 @@ func (s *Store) migrate() error {
 		if err != nil {
 			return fmt.Errorf("reading %s: %w", name, err)
 		}
-		tx, err := s.db.Begin()
+		tx, err := s.conn().Begin()
 		if err != nil {
 			return fmt.Errorf("begin tx for %s: %w", name, err)
 		}

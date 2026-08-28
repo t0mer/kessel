@@ -39,7 +39,7 @@ func scanThreshold(row interface{ Scan(...any) error }) (ThresholdRule, error) {
 
 // CreateThresholdRule inserts a new (enabled) rule.
 func (s *Store) CreateThresholdRule(ctx context.Context, in ThresholdRule) (ThresholdRule, error) {
-	res, err := s.db.ExecContext(ctx,
+	res, err := s.conn().ExecContext(ctx,
 		`INSERT INTO threshold_rules(site_id, category, mode, value, enabled) VALUES(?, ?, ?, ?, 1)`,
 		in.SiteID, in.Category, in.Mode, in.Value)
 	if err != nil {
@@ -51,7 +51,7 @@ func (s *Store) CreateThresholdRule(ctx context.Context, in ThresholdRule) (Thre
 
 // GetThresholdRule returns a rule by ID.
 func (s *Store) GetThresholdRule(ctx context.Context, id int64) (ThresholdRule, error) {
-	row := s.db.QueryRowContext(ctx, `SELECT `+thresholdCols+` FROM threshold_rules WHERE id=?`, id)
+	row := s.conn().QueryRowContext(ctx, `SELECT `+thresholdCols+` FROM threshold_rules WHERE id=?`, id)
 	r, err := scanThreshold(row)
 	if errors.Is(err, sql.ErrNoRows) {
 		return ThresholdRule{}, ErrNotFound
@@ -63,7 +63,7 @@ func (s *Store) GetThresholdRule(ctx context.Context, id int64) (ThresholdRule, 
 }
 
 func (s *Store) queryThresholds(ctx context.Context, where string, args ...any) ([]ThresholdRule, error) {
-	rows, err := s.db.QueryContext(ctx, `SELECT `+thresholdCols+` FROM threshold_rules`+where+` ORDER BY id`, args...)
+	rows, err := s.conn().QueryContext(ctx, `SELECT `+thresholdCols+` FROM threshold_rules`+where+` ORDER BY id`, args...)
 	if err != nil {
 		return nil, fmt.Errorf("listing threshold rules: %w", err)
 	}
@@ -91,7 +91,7 @@ func (s *Store) ListEnabledThresholdRulesBySite(ctx context.Context, siteID int6
 
 // UpdateThresholdRule updates category, mode, value, enabled.
 func (s *Store) UpdateThresholdRule(ctx context.Context, in ThresholdRule) (ThresholdRule, error) {
-	res, err := s.db.ExecContext(ctx,
+	res, err := s.conn().ExecContext(ctx,
 		`UPDATE threshold_rules SET category=?, mode=?, value=?, enabled=? WHERE id=?`,
 		in.Category, in.Mode, in.Value, boolToInt(in.Enabled), in.ID)
 	if err != nil {
@@ -105,7 +105,7 @@ func (s *Store) UpdateThresholdRule(ctx context.Context, in ThresholdRule) (Thre
 
 // SetThresholdRuleEnabled toggles a rule's enabled flag.
 func (s *Store) SetThresholdRuleEnabled(ctx context.Context, id int64, enabled bool) error {
-	res, err := s.db.ExecContext(ctx, `UPDATE threshold_rules SET enabled=? WHERE id=?`, boolToInt(enabled), id)
+	res, err := s.conn().ExecContext(ctx, `UPDATE threshold_rules SET enabled=? WHERE id=?`, boolToInt(enabled), id)
 	if err != nil {
 		return fmt.Errorf("setting threshold rule enabled: %w", err)
 	}
@@ -117,7 +117,7 @@ func (s *Store) SetThresholdRuleEnabled(ctx context.Context, id int64, enabled b
 
 // DeleteThresholdRule removes a rule.
 func (s *Store) DeleteThresholdRule(ctx context.Context, id int64) error {
-	res, err := s.db.ExecContext(ctx, `DELETE FROM threshold_rules WHERE id=?`, id)
+	res, err := s.conn().ExecContext(ctx, `DELETE FROM threshold_rules WHERE id=?`, id)
 	if err != nil {
 		return fmt.Errorf("deleting threshold rule: %w", err)
 	}

@@ -24,6 +24,7 @@ as a **single static binary** with an embedded React UI — drop it on your LAN 
 - **History & comparison** — per-site trend charts and a side-by-side two-run diff with score/metric deltas.
 - **Thresholds & alerts** — **per-site**, per-category rules in **absolute** (below X) or **delta** (dropped > Y) mode.
 - **Notification channels** — Shoutrrr (Slack, Discord, Telegram, email, ntfy, …) and GreenAPI (WhatsApp cloud), each with success/failure toggles and a real "send test". Credentials **encrypted at rest (AES-256-GCM)**. Channels are defined once and **selected per site**, so each site alerts only its chosen channels.
+- **Backup & restore** — one-click backup writes a timestamped `.zip` archive (a consistent `VACUUM INTO` snapshot **plus the encryption key**) to the data folder **and** downloads it. Restore from a saved archive or an upload, applied live with no restart; the archived key is adopted automatically so backups restore on **any** machine. (A raw `.db` file also restores and keeps the current key.) The archive contains the key, so keep backup files secret.
 - **Prometheus metrics** at `/metrics`, structured `log/slog` logging, safe concurrency with configurable spacing.
 - **No login, ever** — built for a trusted LAN; it never assumes it's internet-facing and never requires auth.
 
@@ -54,6 +55,11 @@ Reusable notification channels (Shoutrrr, GreenAPI) with a real "send test".
 
 ![Channels](assets/screenshots/channels.png)
 
+### Database
+One-click backup to a `.zip` archive (database + encryption key), saved to the data folder and downloaded; restore from a saved archive or an upload.
+
+![Database backup & restore](assets/screenshots/database.png)
+
 ### Light mode & mobile
 
 | Light theme | Mobile |
@@ -83,7 +89,7 @@ open http://localhost:8080
 ```
 
 The named `kessel-data` volume holds the SQLite database, the AES encryption key
-(`kessel.key`, generated on first run), and rendered reports — persist it.
+(`kessel.key`, generated on first run), rendered reports, and saved backups — persist it.
 
 ## Run from source
 
@@ -108,7 +114,7 @@ in the database.
 | Flag | Env | Default | Description |
 |---|---|---|---|
 | `--port` | `KESSEL_PORT` | `8080` | HTTP listen port |
-| `--data-dir` | `KESSEL_DATA_DIR` | `/data` | SQLite DB, key file, and reports |
+| `--data-dir` | `KESSEL_DATA_DIR` | `/data` | SQLite DB, key file, reports, and backups |
 | `--psi-api-key` | `KESSEL_PSI_API_KEY` | _(empty)_ | PageSpeed Insights API key (keyless if empty) |
 | `--psi-concurrency` | `KESSEL_PSI_CONCURRENCY` | `2` | Max concurrent PSI checks |
 | `--log-level` | `KESSEL_LOG_LEVEL` | `info` | `debug` / `info` / `warning` / `error` |
@@ -139,6 +145,10 @@ All endpoints live under `/api/v1` and speak JSON. Selected routes:
 | `GET/POST` | `/channels` | List / create channels |
 | `PUT/DELETE` | `/channels/{id}` | Update / delete a channel |
 | `POST` | `/channels/test` | Send a real test message |
+| `GET/POST` | `/backups` | List / create a backup (`.zip`: database + key) |
+| `GET/DELETE` | `/backups/{name}` | Download / delete a backup archive |
+| `POST` | `/backups/{name}/restore` | Restore from a saved backup |
+| `POST` | `/restore` | Restore from an uploaded `.zip` archive or raw `.db` (multipart) |
 | `GET` | `/healthz` | Liveness + version |
 | `GET` | `/metrics` | Prometheus metrics |
 
@@ -149,8 +159,14 @@ There is no authentication — Kessel is meant for a trusted network only.
 - Channel credentials and secrets are encrypted at rest with AES-256-GCM; the key
   comes from `--encryption-key`/`KESSEL_ENCRYPTION_KEY` or is generated to
   `<data-dir>/kessel.key` (mode `0600`) on first run.
-- The report viewer serves only files inside the reports directory (no path traversal).
+- The report viewer and backup download serve only files inside their directories
+  (no path traversal).
 - Credentials are never returned by the API after saving and are never logged.
+- **Backup archives contain the encryption key** so they restore anywhere — treat
+  them as secrets. They are written `0600`, uploads are size-capped, and archive
+  extraction is bounded against zip bombs. Restores are validated (integrity check
+  + Kessel schema) and roll back on failure. Restoring a raw `.db` keeps the
+  current key instead of adopting one.
 
 ## License
 

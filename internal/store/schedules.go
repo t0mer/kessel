@@ -33,7 +33,7 @@ func scanSchedule(row interface{ Scan(...any) error }) (Schedule, error) {
 
 // CreateSchedule inserts a new (enabled) schedule for a site.
 func (s *Store) CreateSchedule(ctx context.Context, in Schedule) (Schedule, error) {
-	res, err := s.db.ExecContext(ctx,
+	res, err := s.conn().ExecContext(ctx,
 		`INSERT INTO schedules(site_id, cron_expr, enabled, created_at) VALUES(?, ?, 1, ?)`,
 		in.SiteID, in.CronExpr, s.now().Unix())
 	if err != nil {
@@ -45,7 +45,7 @@ func (s *Store) CreateSchedule(ctx context.Context, in Schedule) (Schedule, erro
 
 // GetSchedule returns a schedule by ID.
 func (s *Store) GetSchedule(ctx context.Context, id int64) (Schedule, error) {
-	row := s.db.QueryRowContext(ctx, `SELECT `+scheduleCols+` FROM schedules WHERE id=?`, id)
+	row := s.conn().QueryRowContext(ctx, `SELECT `+scheduleCols+` FROM schedules WHERE id=?`, id)
 	sc, err := scanSchedule(row)
 	if errors.Is(err, sql.ErrNoRows) {
 		return Schedule{}, ErrNotFound
@@ -58,7 +58,7 @@ func (s *Store) GetSchedule(ctx context.Context, id int64) (Schedule, error) {
 
 // ListSchedulesBySite returns all schedules for a site, oldest first.
 func (s *Store) ListSchedulesBySite(ctx context.Context, siteID int64) ([]Schedule, error) {
-	rows, err := s.db.QueryContext(ctx,
+	rows, err := s.conn().QueryContext(ctx,
 		`SELECT `+scheduleCols+` FROM schedules WHERE site_id=? ORDER BY id`, siteID)
 	if err != nil {
 		return nil, fmt.Errorf("listing schedules: %w", err)
@@ -69,7 +69,7 @@ func (s *Store) ListSchedulesBySite(ctx context.Context, siteID int64) ([]Schedu
 
 // ListEnabledSchedules returns every enabled schedule (for the scheduler).
 func (s *Store) ListEnabledSchedules(ctx context.Context) ([]Schedule, error) {
-	rows, err := s.db.QueryContext(ctx,
+	rows, err := s.conn().QueryContext(ctx,
 		`SELECT `+scheduleCols+` FROM schedules WHERE enabled=1 ORDER BY id`)
 	if err != nil {
 		return nil, fmt.Errorf("listing enabled schedules: %w", err)
@@ -92,7 +92,7 @@ func collectSchedules(rows *sql.Rows) ([]Schedule, error) {
 
 // UpdateSchedule updates cron_expr and enabled for a schedule.
 func (s *Store) UpdateSchedule(ctx context.Context, in Schedule) (Schedule, error) {
-	res, err := s.db.ExecContext(ctx,
+	res, err := s.conn().ExecContext(ctx,
 		`UPDATE schedules SET cron_expr=?, enabled=? WHERE id=?`,
 		in.CronExpr, boolToInt(in.Enabled), in.ID)
 	if err != nil {
@@ -106,7 +106,7 @@ func (s *Store) UpdateSchedule(ctx context.Context, in Schedule) (Schedule, erro
 
 // SetScheduleEnabled toggles a schedule's enabled flag.
 func (s *Store) SetScheduleEnabled(ctx context.Context, id int64, enabled bool) error {
-	res, err := s.db.ExecContext(ctx,
+	res, err := s.conn().ExecContext(ctx,
 		`UPDATE schedules SET enabled=? WHERE id=?`, boolToInt(enabled), id)
 	if err != nil {
 		return fmt.Errorf("setting schedule enabled: %w", err)
@@ -119,7 +119,7 @@ func (s *Store) SetScheduleEnabled(ctx context.Context, id int64, enabled bool) 
 
 // DeleteSchedule removes a schedule.
 func (s *Store) DeleteSchedule(ctx context.Context, id int64) error {
-	res, err := s.db.ExecContext(ctx, `DELETE FROM schedules WHERE id=?`, id)
+	res, err := s.conn().ExecContext(ctx, `DELETE FROM schedules WHERE id=?`, id)
 	if err != nil {
 		return fmt.Errorf("deleting schedule: %w", err)
 	}

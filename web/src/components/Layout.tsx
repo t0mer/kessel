@@ -7,6 +7,7 @@ import {
   GitCompareArrows,
   FileText,
   Bell,
+  Database,
   Moon,
   Sun,
   Menu,
@@ -22,6 +23,7 @@ const NAV = [
   { to: "/compare", label: "Compare", icon: GitCompareArrows },
   { to: "/reports", label: "Reports", icon: FileText },
   { to: "/channels", label: "Channels", icon: Bell },
+  { to: "/database", label: "Database", icon: Database },
 ];
 
 function NavItems({ onNavigate }: { onNavigate?: () => void }) {

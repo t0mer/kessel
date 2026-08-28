@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"sync"
 )
 
 // KeySize is the AES-256 key length in bytes.
@@ -35,13 +36,7 @@ func ParseKey(hexKey string) ([]byte, error) {
 	return b, nil
 }
 
-// Cipher encrypts and decrypts with AES-256-GCM.
-type Cipher struct {
-	aead cipher.AEAD
-}
-
-// New builds a Cipher from a 32-byte key.
-func New(key []byte) (*Cipher, error) {
+func newAEAD(key []byte) (cipher.AEAD, error) {
 	if len(key) != KeySize {
 		return nil, fmt.Errorf("key must be %d bytes, got %d", KeySize, len(key))
 	}
@@ -53,26 +48,62 @@ func New(key []byte) (*Cipher, error) {
 	if err != nil {
 		return nil, fmt.Errorf("creating GCM: %w", err)
 	}
+	return aead, nil
+}
+
+// Cipher encrypts and decrypts with AES-256-GCM. Its key can be swapped at
+// runtime (during a restore) via SetKey; the handle is safe for concurrent use.
+type Cipher struct {
+	mu   sync.RWMutex
+	aead cipher.AEAD
+}
+
+// New builds a Cipher from a 32-byte key.
+func New(key []byte) (*Cipher, error) {
+	aead, err := newAEAD(key)
+	if err != nil {
+		return nil, err
+	}
 	return &Cipher{aead: aead}, nil
+}
+
+// SetKey replaces the cipher's key atomically.
+func (c *Cipher) SetKey(key []byte) error {
+	aead, err := newAEAD(key)
+	if err != nil {
+		return err
+	}
+	c.mu.Lock()
+	c.aead = aead
+	c.mu.Unlock()
+	return nil
+}
+
+func (c *Cipher) ref() cipher.AEAD {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.aead
 }
 
 // Encrypt returns nonce||ciphertext.
 func (c *Cipher) Encrypt(plaintext []byte) ([]byte, error) {
-	nonce := make([]byte, c.aead.NonceSize())
+	aead := c.ref()
+	nonce := make([]byte, aead.NonceSize())
 	if _, err := rand.Read(nonce); err != nil {
 		return nil, fmt.Errorf("generating nonce: %w", err)
 	}
-	return c.aead.Seal(nonce, nonce, plaintext, nil), nil
+	return aead.Seal(nonce, nonce, plaintext, nil), nil
 }
 
 // Decrypt reverses Encrypt.
 func (c *Cipher) Decrypt(ciphertext []byte) ([]byte, error) {
-	ns := c.aead.NonceSize()
+	aead := c.ref()
+	ns := aead.NonceSize()
 	if len(ciphertext) < ns {
 		return nil, errors.New("ciphertext too short")
 	}
 	nonce, ct := ciphertext[:ns], ciphertext[ns:]
-	pt, err := c.aead.Open(nil, nonce, ct, nil)
+	pt, err := aead.Open(nil, nonce, ct, nil)
 	if err != nil {
 		return nil, fmt.Errorf("decrypting: %w", err)
 	}

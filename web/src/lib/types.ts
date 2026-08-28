@@ -91,6 +91,12 @@ export interface ThresholdRule {
   enabled: boolean;
 }
 
+export interface BackupInfo {
+  name: string;
+  size: number;
+  created_at: string;
+}
+
 export const CATEGORY_LABELS: Record<string, string> = {
   performance: "Performance",
   accessibility: "Accessibility",
