@@ -50,7 +50,7 @@ scans/
 /build/
 
 # Frontend
-web/dist/
+web/dist/*
 web/node_modules/
 node_modules/
 web/.vite/
