@@ -76,6 +76,14 @@ export const api = {
   testChannel: (body: unknown) =>
     request<{ status: string }>("/channels/test", { method: "POST", body: JSON.stringify(body) }),
 
+  // Per-site channel links
+  getSiteChannels: (siteId: number) => request<{ channel_ids: number[] }>(`/sites/${siteId}/channels`),
+  setSiteChannels: (siteId: number, channelIds: number[]) =>
+    request<{ channel_ids: number[] }>(`/sites/${siteId}/channels`, {
+      method: "PUT",
+      body: JSON.stringify({ channel_ids: channelIds }),
+    }),
+
   // Thresholds
   listThresholds: (siteId: number) => request<ThresholdRule[]>(`/sites/${siteId}/thresholds`),
   createThreshold: (siteId: number, body: Partial<ThresholdRule>) =>

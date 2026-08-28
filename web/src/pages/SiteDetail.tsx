@@ -1,9 +1,9 @@
 import { useState } from "react";
-import { useParams } from "react-router-dom";
+import { Link, useParams } from "react-router-dom";
 import { Play, Plus, Trash2, ExternalLink } from "lucide-react";
 import { api } from "@/lib/api";
 import { useApi } from "@/lib/hooks";
-import { CATEGORY_LABELS, type Run, type Schedule, type Site, type ThresholdCategory, type ThresholdMode, type ThresholdRule } from "@/lib/types";
+import { CATEGORY_LABELS, type Channel, type Run, type Schedule, type Site, type ThresholdCategory, type ThresholdMode, type ThresholdRule } from "@/lib/types";
 import { PageHeader } from "@/components/Layout";
 import { LineChart, type Series } from "@/components/LineChart";
 import { Badge, Button, Card, ErrorState, Field, Input, Modal, Select, Spinner, Toggle } from "@/components/ui";
@@ -44,6 +44,7 @@ export function SiteDetail() {
         <HistorySection siteId={siteId} />
         <SchedulesSection siteId={siteId} />
         <ThresholdsSection siteId={siteId} />
+        <NotificationsSection siteId={siteId} />
       </div>
     </>
   );
@@ -225,6 +226,53 @@ function ThresholdsSection({ siteId }: { siteId: number }) {
         ))}
       </div>
       {open && <ThresholdForm siteId={siteId} onClose={() => setOpen(false)} onSaved={() => { setOpen(false); reload(); }} />}
+    </Section>
+  );
+}
+
+function NotificationsSection({ siteId }: { siteId: number }) {
+  const { data: channels } = useApi<Channel[]>(() => api.listChannels(), [], 0);
+  const { data: linked, reload } = useApi(() => api.getSiteChannels(siteId), [siteId], 0);
+  const linkedSet = new Set(linked?.channel_ids ?? []);
+
+  async function toggle(id: number, on: boolean) {
+    const next = new Set(linkedSet);
+    if (on) next.add(id);
+    else next.delete(id);
+    await api.setSiteChannels(siteId, [...next]);
+    reload();
+  }
+
+  return (
+    <Section
+      title="Notifications"
+      action={
+        <Link to="/channels">
+          <Button size="sm" variant="outline">Manage channels</Button>
+        </Link>
+      }
+    >
+      {(channels ?? []).length === 0 ? (
+        <p className="text-sm text-muted">
+          No channels defined yet.{" "}
+          <Link to="/channels" className="text-primary hover:underline">Add one</Link> to alert this site.
+        </p>
+      ) : (
+        <>
+          <p className="mb-3 text-sm text-muted">Choose which channels receive alerts for this site.</p>
+          <div className="space-y-2">
+            {(channels ?? []).map((c) => (
+              <div key={c.id} className="flex items-center justify-between rounded-lg border border-border px-3 py-2 text-sm">
+                <span className="text-fg">
+                  {c.name} <span className="text-muted">· {c.type}</span>
+                  {!c.enabled && <span className="ml-2 text-xs text-muted">(disabled)</span>}
+                </span>
+                <Toggle checked={linkedSet.has(c.id)} label={`Notify ${c.name}`} onChange={(v) => toggle(c.id, v)} />
+              </div>
+            ))}
+          </div>
+        </>
+      )}
     </Section>
   );
 }
