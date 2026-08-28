@@ -24,6 +24,7 @@ as a **single static binary** with an embedded React UI — drop it on your LAN 
 - **History & comparison** — per-site trend charts and a side-by-side two-run diff with score/metric deltas.
 - **Thresholds & alerts** — **per-site**, per-category rules in **absolute** (below X) or **delta** (dropped > Y) mode.
 - **Notification channels** — Shoutrrr (Slack, Discord, Telegram, email, ntfy, …) and GreenAPI (WhatsApp cloud), each with success/failure toggles and a real "send test". Credentials **encrypted at rest (AES-256-GCM)**. Channels are defined once and **selected per site**, so each site alerts only its chosen channels.
+- **Backup & restore** — one-click database backup (consistent `VACUUM INTO` snapshot, timestamped filename) saved to the data folder **and** downloaded to your browser; restore from a saved backup or an uploaded file, applied live with no restart.
 - **Prometheus metrics** at `/metrics`, structured `log/slog` logging, safe concurrency with configurable spacing.
 - **No login, ever** — built for a trusted LAN; it never assumes it's internet-facing and never requires auth.
 
@@ -53,6 +54,11 @@ Two-run diff with highlighted score and metric deltas.
 Reusable notification channels (Shoutrrr, GreenAPI) with a real "send test".
 
 ![Channels](assets/screenshots/channels.png)
+
+### Database
+One-click backup (saved to the data folder and downloaded) and restore from a saved backup or an uploaded file.
+
+![Database backup & restore](assets/screenshots/database.png)
 
 ### Light mode & mobile
 
@@ -139,6 +145,10 @@ All endpoints live under `/api/v1` and speak JSON. Selected routes:
 | `GET/POST` | `/channels` | List / create channels |
 | `PUT/DELETE` | `/channels/{id}` | Update / delete a channel |
 | `POST` | `/channels/test` | Send a real test message |
+| `GET/POST` | `/backups` | List / create a database backup |
+| `GET/DELETE` | `/backups/{name}` | Download / delete a backup |
+| `POST` | `/backups/{name}/restore` | Restore from a saved backup |
+| `POST` | `/restore` | Restore from an uploaded `.db` (multipart) |
 | `GET` | `/healthz` | Liveness + version |
 | `GET` | `/metrics` | Prometheus metrics |
 
