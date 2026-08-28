@@ -1,0 +1,2 @@
+ALTER TABLE channels ADD COLUMN notify_on_success INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE channels ADD COLUMN notify_on_failure INTEGER NOT NULL DEFAULT 1;
